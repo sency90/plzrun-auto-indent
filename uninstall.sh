@@ -70,6 +70,12 @@ else:
     targets.append(os.path.expanduser("~/.vscode-server/data/Machine/settings.json"))
 
 OURFMT = "jkillian.custom-local-formatters"
+GLOBAL_KEYS = ["editor.autoIndent"]
+BACKUP = os.path.expanduser("~/.config/plzrun-auto-indent/orig-settings.json")
+backup = {}
+if os.path.exists(BACKUP):
+    try: backup = json.loads(open(BACKUP).read() or "{}")
+    except Exception: backup = {}
 for p in targets:
     if not os.path.exists(p):
         continue
@@ -81,9 +87,26 @@ for p in targets:
     # 우리가 넣은 astyle 포매터 등록 제거
     if "customLocalFormatters.formatters" in cfg:
         cfg.pop("customLocalFormatters.formatters", None); changed = True
+    # 전역 공통키: 백업된 원래값으로 복원 (없었으면 제거)
+    b = backup.get(p, {})
+    for k in GLOBAL_KEYS:
+        info = b.get(k)
+        if info is not None:           # 백업 있음 → 정확히 복원
+            if info.get("had"):
+                cfg[k] = info.get("val"); changed = True
+            else:
+                if k in cfg: cfg.pop(k, None); changed = True
+        else:                          # 백업 없음 → 우리 값일 때만 제거(best-effort)
+            if cfg.get(k) == "keep":
+                cfg.pop(k, None); changed = True
     for lang in ("[cpp]", "[c]"):
-        if isinstance(cfg.get(lang), dict) and cfg[lang].get("editor.defaultFormatter") == OURFMT:
-            cfg.pop(lang); changed = True
+        o = cfg.get(lang)
+        if isinstance(o, dict) and o.get("editor.defaultFormatter") == OURFMT:
+            o.pop("editor.defaultFormatter", None); changed = True
+            if o:
+                cfg[lang] = o
+            else:
+                cfg.pop(lang, None)
     for lang in ("[makefile]", "[go]"):
         if cfg.get(lang) == {"editor.insertSpaces": False, "editor.detectIndentation": False}:
             cfg.pop(lang); changed = True
@@ -100,6 +123,10 @@ for p in targets:
         print(f"  VSCode 설정에서 우리 키 제거: {p}")
 PY
 log "VSCode settings 정리 완료"
+
+# 원래값 백업 파일 정리 (복원 끝났으니 제거)
+rm -f "$HOME/.config/plzrun-auto-indent/orig-settings.json"
+rmdir "$HOME/.config/plzrun-auto-indent" 2>/dev/null || true
 
 # --- 5) VSCode 확장 제거 ---
 if command -v code >/dev/null 2>&1; then

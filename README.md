@@ -31,7 +31,8 @@ bash uninstall.sh    # 완전 제거 (만든 것만 정확히 되돌림)
 1. **astyle 빌드** — `vendor/astyle-3.6.16/src/*.cpp` 를 `g++ -std=c++17` 로 컴파일 → `~/.local/bin/astyle` (Linux 구버전은 `-lstdc++fs` 자동 폴백)
 2. **`~/.astylerc`** 배치 — 정렬 규칙 단일 소스 (`astylerc` 복사)
 3. **`~/.vimrc`** 패치 — `equalprg=<astyle 절대경로>`(c/cpp) + Makefile/Go `noexpandtab` (마커 블록, 재실행 시 경로 갱신)
-4. **VSCode 전역 settings.json 병합** (기존 설정 보존) — astyle 포매터 등록 + cpp/c 기본 포매터 + Makefile/Go 탭 + `*.mak`/`*.mk`/`GNUmakefile` 인식. macOS / Linux / Remote-WSL 경로 자동 판별
+4. **VSCode 전역 settings.json 병합** (기존 설정 보존) — astyle 포매터 등록 + cpp/c 기본 포매터 + `editor.autoIndent: "keep"`(**전역/모든 언어**: `{` 사이 Enter 시 자동 펼침 없이 개행 1개, vim 손버릇 호환) + Makefile/Go 탭 + `*.mak`/`*.mk`/`GNUmakefile` 인식. macOS / Linux / Remote-WSL 경로 자동 판별.
+   - `[cpp]`/`[c]` 는 덮어쓰지 않고 우리 키만 병합. `editor.autoIndent` 같은 **전역 공통키는 원래값을 `~/.config/plzrun-auto-indent/orig-settings.json` 에 백업** → uninstall 시 원래값으로 **완벽 복원**(원래 없었으면 제거)
 5. **VSCode 확장 자동 설치** — `jkillian.custom-local-formatters` (`code` 있을 때)
 
 ## uninstall.sh 가 되돌리는 것

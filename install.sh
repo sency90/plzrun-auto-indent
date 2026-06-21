@@ -115,6 +115,15 @@ log "~/.vimrc 패치 완료 (equalprg=$ASTYLE_DEST)"
 ASTYLE_DEST="$ASTYLE_DEST" OS="$OS" python3 - <<'PY'
 import json, os
 astyle = os.environ["ASTYLE_DEST"]; osname = os.environ["OS"]
+OURFMT = "jkillian.custom-local-formatters"
+# 전역 공통키(우리가 덮어쓰는 것)의 원래값을 기록 → uninstall이 정확히 복원
+BACKUP = os.path.expanduser("~/.config/plzrun-auto-indent/orig-settings.json")
+backup = {}
+if os.path.exists(BACKUP):
+    try: backup = json.loads(open(BACKUP).read() or "{}")
+    except Exception: backup = {}
+GLOBAL_KEYS = ["editor.autoIndent"]   # 전역(all languages) 적용 키
+
 targets = []
 if osname == "Darwin":
     targets.append(os.path.expanduser("~/Library/Application Support/Code/User/settings.json"))
@@ -132,9 +141,17 @@ for p in targets:
             os.rename(p, p + ".plzrun.bak")
             print(f"  ! settings.json 파싱 실패 → {p}.plzrun.bak 백업 후 재작성 ({e})")
             cfg = {}
+    # 원래값 백업 (최초 1회만 — 재설치로 'keep'이 원래값으로 덮이지 않게)
+    if p not in backup:
+        backup[p] = {k: ({"had": True, "val": cfg[k]} if k in cfg else {"had": False}) for k in GLOBAL_KEYS}
     cfg["customLocalFormatters.formatters"] = [{"command": astyle, "languages": ["cpp", "c"]}]
-    cfg["[cpp]"] = {"editor.defaultFormatter": "jkillian.custom-local-formatters"}
-    cfg["[c]"]   = {"editor.defaultFormatter": "jkillian.custom-local-formatters"}
+    # [cpp]/[c]: 덮어쓰지 않고 우리 키(defaultFormatter)만 병합
+    for _lang in ("[cpp]", "[c]"):
+        _o = cfg[_lang] if isinstance(cfg.get(_lang), dict) else {}
+        _o["editor.defaultFormatter"] = OURFMT
+        cfg[_lang] = _o
+    # 전역(all languages): '{' 사이 Enter 자동 펼침 끔 → 개행 1개 (vim 손버릇 호환)
+    cfg["editor.autoIndent"] = "keep"
     cfg["[makefile]"] = {"editor.insertSpaces": False, "editor.detectIndentation": False}
     cfg["[go]"]       = {"editor.insertSpaces": False, "editor.detectIndentation": False}
     fa = cfg.get("files.associations", {}) or {}
@@ -143,6 +160,8 @@ for p in targets:
     with open(p, "w") as f:
         json.dump(cfg, f, indent=4, ensure_ascii=False); f.write("\n")
     print(f"  VSCode 설정 병합: {p}")
+os.makedirs(os.path.dirname(BACKUP), exist_ok=True)
+open(BACKUP, "w").write(json.dumps(backup, ensure_ascii=False, indent=2))
 PY
 log "VSCode 전역 settings.json 병합 완료"
 

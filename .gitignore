@@ -1,0 +1,5 @@
+# 빌드 산출물 (install.sh가 ~/.local/bin 에 빌드하므로 repo엔 불필요)
+bin/
+*.o
+*.obj
+vendor/**/build/

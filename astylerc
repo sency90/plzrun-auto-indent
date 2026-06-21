@@ -1,0 +1,16 @@
+# ===========================================================
+#  동혁님 C/C++ 코드 스타일 (AStyle) — 전역 기본 옵션파일
+#  설치 위치: ~/.astylerc  (VSCode + 터미널 vim 공용)
+# ===========================================================
+--style=attach                 # 여는 중괄호 같은 줄 + 공백 한 칸: if(x) {
+--break-closing-braces         # else/catch 앞 개행
+--indent=spaces=4              # 들여쓰기 스페이스 4칸
+--convert-tabs                 # (C/C++ 한정) 섞인 탭 → 스페이스
+--keep-one-line-blocks         # 한 줄 블록 보존: { y=1; }
+--keep-one-line-statements     # 한 줄 문장/라벨 보존: BRK:;
+--unpad-paren                  # if (  → if(  (소괄호 앞/안 공백 제거, 개행 없음)
+--indent-namespaces            # namespace 내부 코드 들여쓰기
+--mode=c                       # C/C++ 모드
+--suffix=none                  # 백업 .orig 안 만듦
+# 라벨은 0열(가장 왼쪽)로: --indent-labels 를 "쓰지 않음"
+# 연산자(=,+,-) 공백: pad-oper 미사용 → 손대지 않음 (사용자 자유)

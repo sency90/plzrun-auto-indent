@@ -69,5 +69,15 @@ plzrun-auto-indent/
 ├── uninstall.sh
 ├── astylerc
 ├── README.md
+├── LICENSE
 └── vendor/astyle-3.6.16/   # astyle 소스 (MIT), g++로 빌드됨
 ```
+
+## 라이선스
+
+이 프로젝트는 **MIT License** (루트 `LICENSE`).
+
+번들된 third-party:
+- **Artistic Style (astyle)** — MIT License, (c) The Artistic Style Authors.
+  소스: `vendor/astyle-3.6.16/`, 라이선스 전문: `vendor/astyle-3.6.16/LICENSE.md`,
+  홈: https://astyle.sourceforge.net/

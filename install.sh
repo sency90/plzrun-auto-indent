@@ -152,6 +152,17 @@ for p in targets:
         cfg[_lang] = _o
     # 전역(all languages): '{' 사이 Enter 자동 펼침 끔 → 개행 1개 (vim 손버릇 호환)
     cfg["editor.autoIndent"] = "keep"
+    # VSCodeVim: o/O 가 native 동작(줄 열기+입력모드) 후 문맥에 맞게 자동 들여쓰기(reindent)
+    #   → keep 때문에 o 가 0열로 열려도 reindent 가 올바른 위치로 잡아줌. 배열엔 우리 항목만 append.
+    OUR_VIM = [
+        {"before": ["o"], "after": ["o"], "commands": ["editor.action.reindentselectedlines"]},
+        {"before": ["O"], "after": ["O"], "commands": ["editor.action.reindentselectedlines"]},
+    ]
+    _arr = cfg.get("vim.normalModeKeyBindingsNonRecursive")
+    if not isinstance(_arr, list): _arr = []
+    for _e in OUR_VIM:
+        if _e not in _arr: _arr.append(_e)
+    cfg["vim.normalModeKeyBindingsNonRecursive"] = _arr
     cfg["[makefile]"] = {"editor.insertSpaces": False, "editor.detectIndentation": False}
     cfg["[go]"]       = {"editor.insertSpaces": False, "editor.detectIndentation": False}
     fa = cfg.get("files.associations", {}) or {}

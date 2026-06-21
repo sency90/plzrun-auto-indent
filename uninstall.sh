@@ -99,6 +99,20 @@ for p in targets:
         else:                          # 백업 없음 → 우리 값일 때만 제거(best-effort)
             if cfg.get(k) == "keep":
                 cfg.pop(k, None); changed = True
+    # VSCodeVim o/O 리맵: 우리가 넣은 항목만 제거 (사용자 다른 리맵은 보존)
+    OUR_VIM = [
+        {"before": ["o"], "after": ["o"], "commands": ["editor.action.reindentselectedlines"]},
+        {"before": ["O"], "after": ["O"], "commands": ["editor.action.reindentselectedlines"]},
+    ]
+    arr = cfg.get("vim.normalModeKeyBindingsNonRecursive")
+    if isinstance(arr, list):
+        new = [e for e in arr if e not in OUR_VIM]
+        if len(new) != len(arr):
+            changed = True
+            if new:
+                cfg["vim.normalModeKeyBindingsNonRecursive"] = new
+            else:
+                cfg.pop("vim.normalModeKeyBindingsNonRecursive", None)
     for lang in ("[cpp]", "[c]"):
         o = cfg.get(lang)
         if isinstance(o, dict) and o.get("editor.defaultFormatter") == OURFMT:

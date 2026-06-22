@@ -3,3 +3,6 @@ bin/
 *.o
 *.obj
 vendor/**/build/
+
+# vsix 빌드 산출물 (install.sh가 즉석 빌드)
+*.vsix

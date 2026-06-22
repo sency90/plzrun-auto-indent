@@ -152,11 +152,11 @@ for p in targets:
         cfg[_lang] = _o
     # 전역(all languages): '{' 사이 Enter 자동 펼침 끔 → 개행 1개 (vim 손버릇 호환)
     cfg["editor.autoIndent"] = "keep"
-    # VSCodeVim: o/O 가 native 동작(줄 열기+입력모드) 후 문맥에 맞게 자동 들여쓰기(reindent)
-    #   → keep 때문에 o 가 0열로 열려도 reindent 가 올바른 위치로 잡아줌. 배열엔 우리 항목만 append.
+    # VSCodeVim: o/O 가 native 동작(줄 열기+입력모드) 후 plzrun.fixIndent(전용 확장)로
+    #   브래킷 깊이 기반 들여쓰기. reindent 와 달리 '빈 줄 위가 빈 줄'이어도 정확. 배열엔 우리 항목만 append.
     OUR_VIM = [
-        {"before": ["o"], "after": ["o"], "commands": ["editor.action.reindentselectedlines"]},
-        {"before": ["O"], "after": ["O"], "commands": ["editor.action.reindentselectedlines"]},
+        {"before": ["o"], "after": ["o"], "commands": ["plzrun.fixIndent"]},
+        {"before": ["O"], "after": ["O"], "commands": ["plzrun.fixIndent"]},
     ]
     _arr = cfg.get("vim.normalModeKeyBindingsNonRecursive")
     if not isinstance(_arr, list): _arr = []
@@ -176,7 +176,7 @@ open(BACKUP, "w").write(json.dumps(backup, ensure_ascii=False, indent=2))
 PY
 log "VSCode 전역 settings.json 병합 완료"
 
-# --- 6. VSCode 확장 자동 설치 ---
+# --- 6. VSCode 확장 자동 설치 (astyle 포매터 다리) ---
 if command -v code >/dev/null 2>&1; then
     if code --install-extension "$EXT_ID" --force >/dev/null 2>&1; then
         log "VSCode 확장 설치: $EXT_ID"
@@ -185,6 +185,48 @@ if command -v code >/dev/null 2>&1; then
     fi
 else
     warn "'code' CLI 없음 → 확장 '$EXT_ID' 수동 설치 필요."
+fi
+
+# --- 7. plzrun-vim-indent 확장 빌드(.vsix)+설치 (o/O 블록 들여쓰기) ---
+EXT_VIM_SRC="$SCRIPT_DIR/vscode-extension/plzrun-vim-indent"
+EXT_VIM_ID="plzrun.plzrun-vim-indent"
+if command -v code >/dev/null 2>&1 && command -v zip >/dev/null 2>&1 && [ -d "$EXT_VIM_SRC" ]; then
+    VSIX_TMP="$(mktemp -d)"
+    mkdir -p "$VSIX_TMP/pkg/extension"
+    cp "$EXT_VIM_SRC/package.json" "$EXT_VIM_SRC/extension.js" "$VSIX_TMP/pkg/extension/"
+    cat > "$VSIX_TMP/pkg/extension.vsixmanifest" <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+  <Metadata>
+    <Identity Language="en-US" Id="plzrun-vim-indent" Version="0.0.1" Publisher="plzrun"/>
+    <DisplayName>plzrun vim block indent</DisplayName>
+    <Description>Block-aware o/O indentation for VSCodeVim</Description>
+    <Categories>Other</Categories>
+    <Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.60.0"/></Properties>
+  </Metadata>
+  <Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation>
+  <Dependencies/>
+  <Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets>
+</PackageManifest>
+XML
+    cat > "$VSIX_TMP/pkg/[Content_Types].xml" <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="json" ContentType="application/json"/>
+  <Default Extension="js" ContentType="application/javascript"/>
+  <Default Extension="vsixmanifest" ContentType="text/xml"/>
+  <Default Extension="xml" ContentType="text/xml"/>
+</Types>
+XML
+    ( cd "$VSIX_TMP/pkg" && zip -q -r -X "$VSIX_TMP/plzrun-vim-indent.vsix" extension.vsixmanifest "[Content_Types].xml" extension )
+    if code --install-extension "$VSIX_TMP/plzrun-vim-indent.vsix" --force >/dev/null 2>&1; then
+        log "VSCode 확장 설치: $EXT_VIM_ID (o/O 블록 들여쓰기)"
+    else
+        warn "plzrun-vim-indent 설치 실패 — o/O 들여쓰기 동작 안 할 수 있음."
+    fi
+    rm -rf "$VSIX_TMP"
+else
+    warn "code/zip 없음 또는 확장 소스 없음 → plzrun-vim-indent 설치 건너뜀 (o/O 들여쓰기 미동작)."
 fi
 
 echo

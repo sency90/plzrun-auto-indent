@@ -99,14 +99,16 @@ for p in targets:
         else:                          # 백업 없음 → 우리 값일 때만 제거(best-effort)
             if cfg.get(k) == "keep":
                 cfg.pop(k, None); changed = True
-    # VSCodeVim o/O 리맵: 우리가 넣은 항목만 제거 (사용자 다른 리맵은 보존)
-    OUR_VIM = [
-        {"before": ["o"], "after": ["o"], "commands": ["editor.action.reindentselectedlines"]},
-        {"before": ["O"], "after": ["O"], "commands": ["editor.action.reindentselectedlines"]},
-    ]
+    # VSCodeVim o/O 리맵: 우리가 넣은 항목만 제거 (구/신 버전 모두). 사용자 다른 리맵은 보존.
+    OUR_CMDS = (["plzrun.fixIndent"], ["editor.action.reindentselectedlines"])
+    def _is_ours(e):
+        return (isinstance(e, dict)
+                and e.get("before") in (["o"], ["O"])
+                and e.get("after") == e.get("before")
+                and e.get("commands") in OUR_CMDS)
     arr = cfg.get("vim.normalModeKeyBindingsNonRecursive")
     if isinstance(arr, list):
-        new = [e for e in arr if e not in OUR_VIM]
+        new = [e for e in arr if not _is_ours(e)]
         if len(new) != len(arr):
             changed = True
             if new:
@@ -142,15 +144,17 @@ log "VSCode settings 정리 완료"
 rm -f "$HOME/.config/plzrun-auto-indent/orig-settings.json"
 rmdir "$HOME/.config/plzrun-auto-indent" 2>/dev/null || true
 
-# --- 5) VSCode 확장 제거 ---
+# --- 5) VSCode 확장 제거 (우리가 설치한 것들) ---
 if command -v code >/dev/null 2>&1; then
-    if code --uninstall-extension "$EXT_ID" >/dev/null 2>&1; then
-        log "VSCode 확장 제거: $EXT_ID"
-    else
-        warn "확장 제거 실패(미설치일 수 있음): $EXT_ID"
-    fi
+    for X in "$EXT_ID" "plzrun.plzrun-vim-indent"; do
+        if code --uninstall-extension "$X" >/dev/null 2>&1; then
+            log "VSCode 확장 제거: $X"
+        else
+            warn "확장 제거 실패(미설치일 수 있음): $X"
+        fi
+    done
 else
-    warn "'code' CLI 없음 → 확장 '$EXT_ID' 수동 제거 필요(원하면)"
+    warn "'code' CLI 없음 → 확장 수동 제거 필요(원하면): $EXT_ID, plzrun.plzrun-vim-indent"
 fi
 
 echo

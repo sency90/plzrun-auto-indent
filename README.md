@@ -33,8 +33,9 @@ bash uninstall.sh    # 완전 제거 (만든 것만 정확히 되돌림)
 3. **`~/.vimrc`** 패치 — `equalprg=<astyle 절대경로>`(c/cpp) + Makefile/Go `noexpandtab` (마커 블록, 재실행 시 경로 갱신)
 4. **VSCode 전역 settings.json 병합** (기존 설정 보존) — astyle 포매터 등록 + cpp/c 기본 포매터 + `editor.autoIndent: "keep"`(**전역/모든 언어**: `{` 사이 Enter 시 자동 펼침 없이 개행 1개, vim 손버릇 호환) + Makefile/Go 탭 + `*.mak`/`*.mk`/`GNUmakefile` 인식. macOS / Linux / Remote-WSL 경로 자동 판별.
    - `[cpp]`/`[c]` 는 덮어쓰지 않고 우리 키만 병합. `editor.autoIndent` 같은 **전역 공통키는 원래값을 `~/.config/plzrun-auto-indent/orig-settings.json` 에 백업** → uninstall 시 원래값으로 **완벽 복원**(원래 없었으면 제거)
-   - **VSCodeVim `o`/`O` 리맵** 추가(`vim.normalModeKeyBindingsNonRecursive`): native `o`(줄 열기+입력모드) 후 `reindent`로 문맥 맞춤 들여쓰기. `autoIndent:keep`라 `{` 사이 Enter는 1줄이면서도 `ko` 손버릇에서 커서가 올바른 들여쓰기 위치로 감. 배열엔 **우리 2개 항목만 append**(사용자 다른 리맵 보존), uninstall 시 **우리 항목만 제거**
-5. **VSCode 확장 자동 설치** — `jkillian.custom-local-formatters` (`code` 있을 때)
+   - **VSCodeVim `o`/`O` 리맵** 추가(`vim.normalModeKeyBindingsNonRecursive`): native `o`(줄 열기+입력모드) 후 **`plzrun.fixIndent`(전용 확장)** 로 브래킷 깊이 기반 들여쓰기. `autoIndent:keep`라 `{` 사이 Enter는 1줄이면서도 `ko` 손버릇에서 커서가 항상 블록에 맞는 들여쓰기로 감(**빈 줄 위가 빈 줄이어도 정확** — reindent의 0열 문제 해결). 배열엔 **우리 2개 항목만 append**(사용자 다른 리맵 보존), uninstall 시 **우리 항목만 제거**
+5. **VSCode 확장 자동 설치** — `jkillian.custom-local-formatters` (astyle 포매터 다리)
+6. **전용 확장 `plzrun-vim-indent` 빌드+설치** — `vscode-extension/` 소스를 즉석에서 `.vsix`(zip)로 만들어 `code --install-extension`. `plzrun.fixIndent` 명령 제공(파일 처음부터 미닫힌 `{` 개수로 블록 깊이 계산, `}` 시작 줄은 −1). VSCode 전용(Visual Studio 아님).
 
 ## uninstall.sh 가 되돌리는 것
 

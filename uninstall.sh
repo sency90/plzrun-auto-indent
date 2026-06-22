@@ -115,6 +115,19 @@ for p in targets:
                 cfg["vim.normalModeKeyBindingsNonRecursive"] = new
             else:
                 cfg.pop("vim.normalModeKeyBindingsNonRecursive", None)
+    # visual 모드 '=' 리맵(우리 것)만 제거
+    def _is_ours_v(e):
+        return (isinstance(e, dict) and e.get("before") == ["="]
+                and e.get("commands") == ["plzrun.reindentSelection"])
+    varr = cfg.get("vim.visualModeKeyBindingsNonRecursive")
+    if isinstance(varr, list):
+        vnew = [e for e in varr if not _is_ours_v(e)]
+        if len(vnew) != len(varr):
+            changed = True
+            if vnew:
+                cfg["vim.visualModeKeyBindingsNonRecursive"] = vnew
+            else:
+                cfg.pop("vim.visualModeKeyBindingsNonRecursive", None)
     for lang in ("[cpp]", "[c]"):
         o = cfg.get(lang)
         if isinstance(o, dict) and o.get("editor.defaultFormatter") == OURFMT:

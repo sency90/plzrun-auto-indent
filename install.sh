@@ -163,6 +163,13 @@ for p in targets:
     for _e in OUR_VIM:
         if _e not in _arr: _arr.append(_e)
     cfg["vim.normalModeKeyBindingsNonRecursive"] = _arr
+    # visual 모드 '=' : 선택 영역을 바깥 맥락 유지하며 재들여쓰기 (vim '=' 처럼)
+    OUR_VVIM = [{"before": ["="], "commands": ["plzrun.reindentSelection"]}]
+    _varr = cfg.get("vim.visualModeKeyBindingsNonRecursive")
+    if not isinstance(_varr, list): _varr = []
+    for _e in OUR_VVIM:
+        if _e not in _varr: _varr.append(_e)
+    cfg["vim.visualModeKeyBindingsNonRecursive"] = _varr
     cfg["[makefile]"] = {"editor.insertSpaces": False, "editor.detectIndentation": False}
     cfg["[go]"]       = {"editor.insertSpaces": False, "editor.detectIndentation": False}
     fa = cfg.get("files.associations", {}) or {}
@@ -198,7 +205,7 @@ if command -v code >/dev/null 2>&1 && command -v zip >/dev/null 2>&1 && [ -d "$E
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
   <Metadata>
-    <Identity Language="en-US" Id="plzrun-vim-indent" Version="0.0.1" Publisher="plzrun"/>
+    <Identity Language="en-US" Id="plzrun-vim-indent" Version="0.0.2" Publisher="plzrun"/>
     <DisplayName>plzrun vim block indent</DisplayName>
     <Description>Block-aware o/O indentation for VSCodeVim</Description>
     <Categories>Other</Categories>

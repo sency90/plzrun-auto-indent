@@ -2,7 +2,7 @@
   "name": "plzrun-vim-indent",
   "displayName": "plzrun vim block indent",
   "description": "Block-aware o/O indentation helper for VSCodeVim (brace-depth based, works on empty lines).",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "plzrun",
   "license": "MIT",
   "engines": { "vscode": "^1.60.0" },
@@ -11,7 +11,8 @@
   "main": "./extension.js",
   "contributes": {
     "commands": [
-      { "command": "plzrun.fixIndent", "title": "plzrun: fix current line indent to brace depth" }
+      { "command": "plzrun.fixIndent", "title": "plzrun: fix current line indent to brace depth" },
+      { "command": "plzrun.reindentSelection", "title": "plzrun: reindent selection to brace depth (keep outer context)" }
     ]
   }
 }

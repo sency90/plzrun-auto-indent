@@ -63,9 +63,49 @@ async function fixIndent() {
     ed.selection = new vscode.Selection(pos, pos);
 }
 
+// 선택 영역의 각 줄을, 파일 전체 브래킷 깊이에 맞게 재들여쓰기 (vim '=' 처럼).
+// 선택 밖은 절대 안 건드리되, 깊이는 '파일 처음부터'의 미닫힌 { 개수로 계산하므로
+// 바깥 블록 맥락(들여쓰기)이 그대로 반영된다. (들여쓰기만 손대고 토큰 간격은 안 건드림)
+async function reindentSelection() {
+    const ed = vscode.window.activeTextEditor;
+    if (!ed) return;
+    const doc = ed.document;
+
+    const lineSet = new Set();
+    for (const sel of ed.selections) {
+        let a = sel.start.line, b = sel.end.line;
+        // 줄 단위 선택(V)에서 끝이 다음 줄 0열이면 그 줄은 제외
+        if (b > a && sel.end.character === 0) b -= 1;
+        for (let l = a; l <= b; l++) lineSet.add(l);
+    }
+    const lines = [...lineSet].sort((x, y) => x - y);
+    if (lines.length === 0) return;
+
+    const opt = ed.options;
+    const tabSize = typeof opt.tabSize === "number" ? opt.tabSize : 4;
+    const useSpaces = opt.insertSpaces !== false;
+
+    await ed.edit((eb) => {
+        for (const line of lines) {
+            const txt = doc.lineAt(line).text;
+            if (txt.trim() === "") {                 // 빈 줄은 비운 채로(공백만 제거)
+                const lead0 = (txt.match(/^[ \t]*/) || [""])[0].length;
+                if (lead0 > 0) eb.replace(new vscode.Range(line, 0, line, lead0), "");
+                continue;
+            }
+            let d = braceDepthBefore(doc, line);
+            if (/^\s*[}\])]/.test(txt)) d = Math.max(0, d - 1);
+            const indent = useSpaces ? " ".repeat(d * tabSize) : "\t".repeat(d);
+            const lead = (txt.match(/^[ \t]*/) || [""])[0].length;
+            eb.replace(new vscode.Range(line, 0, line, lead), indent);
+        }
+    }, { undoStopBefore: true, undoStopAfter: true });
+}
+
 function activate(context) {
     context.subscriptions.push(
-        vscode.commands.registerCommand("plzrun.fixIndent", fixIndent)
+        vscode.commands.registerCommand("plzrun.fixIndent", fixIndent),
+        vscode.commands.registerCommand("plzrun.reindentSelection", reindentSelection)
     );
 }
 function deactivate() {}

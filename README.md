@@ -35,7 +35,7 @@ bash uninstall.sh    # 완전 제거 (만든 것만 정확히 되돌림)
    - `[cpp]`/`[c]` 는 덮어쓰지 않고 우리 키만 병합. `editor.autoIndent` 같은 **전역 공통키는 원래값을 `~/.config/plzrun-auto-indent/orig-settings.json` 에 백업** → uninstall 시 원래값으로 **완벽 복원**(원래 없었으면 제거)
    - **VSCodeVim `o`/`O` 리맵** 추가(`vim.normalModeKeyBindingsNonRecursive`): native `o`(줄 열기+입력모드) 후 **`plzrun.fixIndent`(전용 확장)** 로 브래킷 깊이 기반 들여쓰기. `autoIndent:keep`라 `{` 사이 Enter는 1줄이면서도 `ko` 손버릇에서 커서가 항상 블록에 맞는 들여쓰기로 감(**빈 줄 위가 빈 줄이어도 정확** — reindent의 0열 문제 해결). 배열엔 **우리 2개 항목만 append**(사용자 다른 리맵 보존), uninstall 시 **우리 항목만 제거**
 5. **VSCode 확장 자동 설치** — `jkillian.custom-local-formatters` (astyle 포매터 다리)
-6. **전용 확장 `plzrun-vim-indent` 빌드+설치** — `vscode-extension/` 소스를 즉석에서 `.vsix`(zip)로 만들어 `code --install-extension`. `plzrun.fixIndent` 명령 제공(파일 처음부터 미닫힌 `{` 개수로 블록 깊이 계산, `}` 시작 줄은 −1). VSCode 전용(Visual Studio 아님).
+6. **전용 확장 `plzrun-vim-indent` 빌드+설치** — `vscode-extension/` 소스를 즉석에서 `.vsix`(zip)로 만들어 `code --install-extension`. 명령 2개: `plzrun.fixIndent`(o/O 줄 들여쓰기), `plzrun.reindentSelection`(visual `=` 선택영역 재들여쓰기 — 바깥 맥락 유지). 둘 다 파일 처음부터 미닫힌 `{` 개수로 블록 깊이 계산(`}` 시작 줄은 −1). VSCode 전용(Visual Studio 아님).
 
 ## uninstall.sh 가 되돌리는 것
 

@@ -52,7 +52,8 @@ async function fixIndent() {
     const opt = ed.options;
     const tabSize = typeof opt.tabSize === "number" ? opt.tabSize : 4;
     const useSpaces = opt.insertSpaces !== false;
-    const indent = useSpaces ? " ".repeat(d * tabSize) : "\t".repeat(d);
+    let indent = useSpaces ? " ".repeat(d * tabSize) : "\t".repeat(d);
+    if (/^\s*#/.test(curText)) indent = ""; // 전처리기 지시문(#if/#endif/#define...)은 항상 0열
 
     const lead = (curText.match(/^[ \t]*/) || [""])[0].length;
     await ed.edit(
@@ -95,7 +96,8 @@ async function reindentSelection() {
             }
             let d = braceDepthBefore(doc, line);
             if (/^\s*[}\])]/.test(txt)) d = Math.max(0, d - 1);
-            const indent = useSpaces ? " ".repeat(d * tabSize) : "\t".repeat(d);
+            let indent = useSpaces ? " ".repeat(d * tabSize) : "\t".repeat(d);
+            if (/^\s*#/.test(txt)) indent = ""; // 전처리기 지시문은 항상 0열
             const lead = (txt.match(/^[ \t]*/) || [""])[0].length;
             eb.replace(new vscode.Range(line, 0, line, lead), indent);
         }

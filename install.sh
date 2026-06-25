@@ -205,7 +205,7 @@ if command -v code >/dev/null 2>&1 && command -v zip >/dev/null 2>&1 && [ -d "$E
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
   <Metadata>
-    <Identity Language="en-US" Id="plzrun-vim-indent" Version="0.0.2" Publisher="plzrun"/>
+    <Identity Language="en-US" Id="plzrun-vim-indent" Version="0.0.3" Publisher="plzrun"/>
     <DisplayName>plzrun vim block indent</DisplayName>
     <Description>Block-aware o/O indentation for VSCodeVim</Description>
     <Categories>Other</Categories>

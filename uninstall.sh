@@ -69,8 +69,34 @@ if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2
 fi
 
 OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
-import json, os
+import json, os, re
 osname = os.environ["OS"]
+
+# VSCode settings.json 은 JSONC → 주석/후행쉼표 제거 후 파싱(엄격 파서 오판 방지)
+def loads_jsonc(text):
+    out = []; i = 0; n = len(text); in_str = False; esc = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if esc: esc = False
+            elif c == "\\": esc = True
+            elif c == '"': in_str = False
+            i += 1; continue
+        if c == '"':
+            in_str = True; out.append(c); i += 1; continue
+        if c == "/" and i + 1 < n and text[i+1] == "/":
+            while i < n and text[i] != "\n": i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i+1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i+1] == "/"): i += 1
+            i += 2; continue
+        out.append(c); i += 1
+    s = "".join(out)
+    s = re.sub(r",(\s*[}\]])", r"\1", s)
+    return json.loads(s)
+
 targets = []
 if osname == "Darwin":
     targets.append(os.path.expanduser("~/Library/Application Support/Code/User/settings.json"))
@@ -92,9 +118,9 @@ for p in targets:
     if not os.path.exists(p):
         continue
     try:
-        t = open(p).read().strip(); cfg = json.loads(t) if t else {}
+        t = open(p).read().strip(); cfg = loads_jsonc(t) if t else {}
     except Exception as e:
-        print(f"  ! {p} 파싱 실패 → 건너뜀 ({e})"); continue
+        print(f"  ! {p} 파싱 실패 → 건너뜀(원본 보존) ({e})"); continue
     changed = False
     # 우리가 넣은 astyle 포매터 등록 제거
     if "customLocalFormatters.formatters" in cfg:

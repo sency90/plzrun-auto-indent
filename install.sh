@@ -132,9 +132,36 @@ if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2
 fi
 
 ASTYLE_DEST="$ASTYLE_DEST" OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
-import json, os
+import json, os, re
 astyle = os.environ["ASTYLE_DEST"]; osname = os.environ["OS"]
 OURFMT = "jkillian.custom-local-formatters"
+
+# VSCode settings.json 은 JSONC(주석 // /* */ + 후행쉼표 허용)다.
+# 엄격한 json.loads 로 읽으면 멀쩡한 파일을 '깨졌다'고 오판하므로,
+# 문자열을 보호하면서 주석/후행쉼표를 제거한 뒤 파싱한다.
+def loads_jsonc(text):
+    out = []; i = 0; n = len(text); in_str = False; esc = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if esc: esc = False
+            elif c == "\\": esc = True
+            elif c == '"': in_str = False
+            i += 1; continue
+        if c == '"':
+            in_str = True; out.append(c); i += 1; continue
+        if c == "/" and i + 1 < n and text[i+1] == "/":      # 라인 주석
+            while i < n and text[i] != "\n": i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i+1] == "*":      # 블록 주석
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i+1] == "/"): i += 1
+            i += 2; continue
+        out.append(c); i += 1
+    s = "".join(out)
+    s = re.sub(r",(\s*[}\]])", r"\1", s)                      # 후행쉼표 제거
+    return json.loads(s)
 # 전역 공통키(우리가 덮어쓰는 것)의 원래값을 기록 → uninstall이 정확히 복원
 BACKUP = os.path.expanduser("~/.config/plzrun-auto-indent/orig-settings.json")
 backup = {}
@@ -155,15 +182,23 @@ else:
     if _win:
         targets.append(_win)
 for p in targets:
-    os.makedirs(os.path.dirname(p), exist_ok=True)
     cfg = {}
+    had_comments = False
     if os.path.exists(p):
         try:
-            t = open(p).read().strip(); cfg = json.loads(t) if t else {}
+            t = open(p).read().strip()
+            had_comments = bool(t) and ("//" in t or "/*" in t)
+            cfg = loads_jsonc(t) if t else {}
         except Exception as e:
-            os.rename(p, p + ".plzrun.bak")
-            print(f"  ! settings.json 파싱 실패 → {p}.plzrun.bak 백업 후 재작성 ({e})")
-            cfg = {}
+            # 진짜로 깨진 JSON: 절대 건드리지 않고 건너뛴다 (원본 보존이 최우선).
+            print(f"  ! 건너뜀(원본 보존): {p}")
+            print(f"    JSON 문법 오류로 안전하게 병합할 수 없습니다 → {e}")
+            print(f"    이 파일의 문법 오류를 고친 뒤 install.sh 를 다시 실행하세요.")
+            continue
+    else:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+    if had_comments:
+        print(f"  (참고) {p} 의 주석은 병합 저장 시 제거됩니다(값/설정은 모두 보존).")
     # 원래값 백업 (최초 1회만 — 재설치로 'keep'이 원래값으로 덮이지 않게)
     if p not in backup:
         backup[p] = {k: ({"had": True, "val": cfg[k]} if k in cfg else {"had": False}) for k in GLOBAL_KEYS}

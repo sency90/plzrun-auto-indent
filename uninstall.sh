@@ -59,7 +59,16 @@ else
 fi
 
 # --- 4) VSCode settings.json 에서 우리 키만 제거 ---
-OS="$OS" python3 - <<'PY'
+# install.sh 와 동일하게 Remote-WSL 의 Windows User 설정 경로도 탐지(거기에도 썼으므로 제거 대상)
+WIN_USER_SETTINGS=""
+if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+    if command -v cmd.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+        _appdata="$(cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')"
+        [ -n "$_appdata" ] && WIN_USER_SETTINGS="$(wslpath -u "$_appdata" 2>/dev/null)/Code/User/settings.json"
+    fi
+fi
+
+OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
 import json, os
 osname = os.environ["OS"]
 targets = []
@@ -68,6 +77,9 @@ if osname == "Darwin":
 else:
     targets.append(os.path.expanduser("~/.config/Code/User/settings.json"))
     targets.append(os.path.expanduser("~/.vscode-server/data/Machine/settings.json"))
+    _win = os.environ.get("WIN_USER_SETTINGS", "")
+    if _win:
+        targets.append(_win)
 
 OURFMT = "jkillian.custom-local-formatters"
 GLOBAL_KEYS = ["editor.autoIndent"]

@@ -112,7 +112,26 @@ fi
 log "~/.vimrc 패치 완료 (equalprg=$ASTYLE_DEST)"
 
 # --- 5. VSCode 전역 settings.json 병합 (기존 설정 보존) ---
-ASTYLE_DEST="$ASTYLE_DEST" OS="$OS" python3 - <<'PY'
+# Remote-WSL 대응: WSL 안에서 돌면 VSCode(원격)가 실제로 읽는 User 설정은
+#   Windows 쪽(%APPDATA%\Code\User\settings.json)에 있다. 그 경로를 cmd.exe+wslpath 로
+#   찾아내 병합 대상에 추가한다. (WSL 안 ~/.config/Code/User 는 네이티브 GUI 전용이라 안 읽힘)
+WIN_USER_SETTINGS=""
+if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+    if command -v cmd.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+        _appdata="$(cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')"
+        if [ -n "$_appdata" ]; then
+            _winuser="$(wslpath -u "$_appdata" 2>/dev/null)/Code/User/settings.json"
+            # /mnt/c 가 실제로 마운트돼 접근 가능할 때만 채택
+            if [ -d "$(dirname "$(dirname "$_winuser")")" ] || [ -d "/mnt/c" ]; then
+                WIN_USER_SETTINGS="$_winuser"
+                log "Remote-WSL 감지 → Windows User 설정도 병합: $WIN_USER_SETTINGS"
+            fi
+        fi
+    fi
+    [ -z "$WIN_USER_SETTINGS" ] && warn "WSL이지만 Windows User 설정 경로를 못 찾음 → WSL 쪽만 병합(키 연결이 회사 VSCode에 안 먹으면 수동 추가 필요)."
+fi
+
+ASTYLE_DEST="$ASTYLE_DEST" OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
 import json, os
 astyle = os.environ["ASTYLE_DEST"]; osname = os.environ["OS"]
 OURFMT = "jkillian.custom-local-formatters"
@@ -131,6 +150,10 @@ else:
     targets.append(os.path.expanduser("~/.config/Code/User/settings.json"))
     if os.path.isdir(os.path.expanduser("~/.vscode-server")):
         targets.append(os.path.expanduser("~/.vscode-server/data/Machine/settings.json"))
+    # Remote-WSL: Windows 쪽 User 설정(VSCode 원격이 실제로 읽는 곳)
+    _win = os.environ.get("WIN_USER_SETTINGS", "")
+    if _win:
+        targets.append(_win)
 for p in targets:
     os.makedirs(os.path.dirname(p), exist_ok=True)
     cfg = {}

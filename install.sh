@@ -242,6 +242,79 @@ open(BACKUP, "w").write(json.dumps(backup, ensure_ascii=False, indent=2))
 PY
 log "VSCode 전역 settings.json 병합 완료"
 
+# --- 5.5 [macOS 한정] VSCode keybindings: Option+←/→ → 커서 위치 히스토리 이동 ---
+# Windows VSCode 의 Alt+←/→(navigateBack/Forward)와 동일한 동작을 mac 에서 재현.
+# when 절 없이 전역: navigateBack/Forward 는 통합터미널 기본 commandsToSkipShell
+#   목록에 없어 터미널 포커스 시 키가 셸로 그대로 전달됨(word-move 보존) —
+#   Windows/Linux 의 VSCode 기본 바인딩과 같은 형태.
+# 부작용: 에디터의 Option+←/→ 기본 '단어 단위 이동'이 덮임 (Cmd+←/→, vim b/w 는 그대로).
+# JSONC 배열 → 주석/후행쉼표 제거 후 파싱, 기존 사용자 바인딩 보존 + 우리 2개만 append.
+if [ "$OS" = "Darwin" ]; then
+    MAC_KEYBINDINGS="$HOME/Library/Application Support/Code/User/keybindings.json" python3 - <<'PY'
+import json, os, re
+p = os.environ["MAC_KEYBINDINGS"]
+
+def loads_jsonc(text):
+    out = []; i = 0; n = len(text); in_str = False; esc = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if esc: esc = False
+            elif c == "\\": esc = True
+            elif c == '"': in_str = False
+            i += 1; continue
+        if c == '"':
+            in_str = True; out.append(c); i += 1; continue
+        if c == "/" and i + 1 < n and text[i+1] == "/":
+            while i < n and text[i] != "\n": i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i+1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i+1] == "/"): i += 1
+            i += 2; continue
+        out.append(c); i += 1
+    s = "".join(out)
+    s = re.sub(r",(\s*[}\]])", r"\1", s).strip()
+    return json.loads(s) if s else []   # 주석만 있던 파일(신규 기본 상태) → 빈 배열
+
+# uninstall 이 '정확히 이 두 항목'만 제거할 수 있게 exact match 로 식별되는 형태 유지
+OUR_KB = [
+    {"key": "alt+left",  "command": "workbench.action.navigateBack"},
+    {"key": "alt+right", "command": "workbench.action.navigateForward"},
+]
+arr = []; had_comments = False
+if os.path.exists(p):
+    t = open(p).read().strip()
+    had_comments = bool(t) and ("//" in t or "/*" in t)
+    try:
+        arr = loads_jsonc(t) if t else []
+    except Exception as e:
+        print(f"  ! 건너뜀(원본 보존): {p}")
+        print(f"    JSON 문법 오류로 안전하게 병합할 수 없습니다 → {e}")
+        print(f"    이 파일의 문법 오류를 고친 뒤 install.sh 를 다시 실행하세요.")
+        raise SystemExit(0)
+    if not isinstance(arr, list):
+        print(f"  ! 건너뜀(원본 보존): {p} 최상위가 배열이 아닙니다.")
+        raise SystemExit(0)
+else:
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+if had_comments:
+    print(f"  (참고) {p} 의 주석은 병합 저장 시 제거됩니다(바인딩은 모두 보존).")
+changed = False
+for e in OUR_KB:
+    if e not in arr:
+        arr.append(e); changed = True
+if changed or not os.path.exists(p):
+    with open(p, "w") as f:
+        json.dump(arr, f, indent=4, ensure_ascii=False); f.write("\n")
+print(f"  VSCode keybindings 병합: {p}")
+PY
+    log "VSCode keybindings 병합 완료 (Option+←/→ → 커서 위치 히스토리 이동)"
+else
+    log "Option+←/→ 커서 히스토리 키바인딩: macOS 아님 → 건너뜀"
+fi
+
 # --- 6. VSCode 확장 자동 설치 (astyle 포매터 다리) ---
 if command -v code >/dev/null 2>&1; then
     if code --install-extension "$EXT_ID" --force >/dev/null 2>&1; then
@@ -300,4 +373,7 @@ log "✅ 설치 완료!"
 echo "   • astyle      : $ASTYLE_DEST"
 echo "   • 터미널 vim  : 새로 켜고  gg=G"
 echo "   • VSCode      : Reload Window 후  gg=G (또는 Format Document)"
+if [ "$OS" = "Darwin" ]; then
+    echo "   • Option+←/→  : 커서 위치 히스토리 뒤로/앞으로 (mac VSCode 한정)"
+fi
 echo "   • 제거        : bash uninstall.sh"

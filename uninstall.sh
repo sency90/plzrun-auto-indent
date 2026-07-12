@@ -6,6 +6,7 @@
 #    2) ~/.astylerc          (우리 마커가 있을 때만)
 #    3) ~/.vimrc 의 마커 블록 (>>> plzrun-auto-indent >>> ~ <<<)
 #    4) VSCode settings.json 에서 우리가 넣은 키만 제거
+#       (macOS: keybindings.json 의 Option+←/→ 히스토리 항목 2개도 제거)
 #    5) VSCode 확장 jkillian.custom-local-formatters 제거
 #  사용법:  bash uninstall.sh
 # ============================================================================
@@ -191,6 +192,57 @@ for p in targets:
         print(f"  VSCode 설정에서 우리 키 제거: {p}")
 PY
 log "VSCode settings 정리 완료"
+
+# --- 4.5 [macOS 한정] VSCode keybindings 에서 우리 항목(Option+←/→ 히스토리)만 제거 ---
+if [ "$OS" = "Darwin" ]; then
+    MAC_KEYBINDINGS="$HOME/Library/Application Support/Code/User/keybindings.json" python3 - <<'PY'
+import json, os, re
+p = os.environ["MAC_KEYBINDINGS"]
+
+def loads_jsonc(text):
+    out = []; i = 0; n = len(text); in_str = False; esc = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if esc: esc = False
+            elif c == "\\": esc = True
+            elif c == '"': in_str = False
+            i += 1; continue
+        if c == '"':
+            in_str = True; out.append(c); i += 1; continue
+        if c == "/" and i + 1 < n and text[i+1] == "/":
+            while i < n and text[i] != "\n": i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i+1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i+1] == "/"): i += 1
+            i += 2; continue
+        out.append(c); i += 1
+    s = "".join(out)
+    s = re.sub(r",(\s*[}\]])", r"\1", s).strip()
+    return json.loads(s) if s else []
+
+# install.sh 가 넣은 항목과 '완전 일치'하는 것만 제거 (사용자 다른 바인딩 보존)
+OUR_KB = [
+    {"key": "alt+left",  "command": "workbench.action.navigateBack"},
+    {"key": "alt+right", "command": "workbench.action.navigateForward"},
+]
+if os.path.exists(p):
+    try:
+        t = open(p).read().strip()
+        arr = loads_jsonc(t) if t else []
+    except Exception as e:
+        print(f"  ! {p} 파싱 실패 → 건너뜀(원본 보존) ({e})"); raise SystemExit(0)
+    if isinstance(arr, list):
+        new = [e for e in arr if e not in OUR_KB]
+        if len(new) != len(arr):
+            with open(p, "w") as f:
+                json.dump(new, f, indent=4, ensure_ascii=False); f.write("\n")
+            print(f"  VSCode keybindings 에서 우리 항목 제거: {p}")
+PY
+    log "VSCode keybindings 정리 완료"
+fi
 
 # 원래값 백업 파일 정리 (복원 끝났으니 제거)
 rm -f "$HOME/.config/plzrun-auto-indent/orig-settings.json"

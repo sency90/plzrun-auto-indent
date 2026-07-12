@@ -49,7 +49,8 @@ import sys, re
 p = sys.argv[1]
 s = open(p).read()
 # 마커 블록(앞의 빈 줄 포함) 제거
-s2 = re.sub(r'\n*^".*>>> plzrun-auto-indent >>>.*?^".*<<< plzrun-auto-indent <<<.*?$\n?',
+# [^\n]* : 마커 '줄' 안에서만 매칭 (re.S 의 .* 가 앞선 사용자 주석 줄까지 삼키는 것 방지)
+s2 = re.sub(r'\n*^"[^\n]*>>> plzrun-auto-indent >>>.*?^"[^\n]*<<< plzrun-auto-indent <<<[^\n]*$\n?',
             '\n', s, flags=re.S | re.M)
 open(p, "w").write(s2)
 PY

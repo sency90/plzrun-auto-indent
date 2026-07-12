@@ -95,7 +95,8 @@ if [ -f "$VIMRC" ] && grep -q "plzrun-auto-indent" "$VIMRC"; then
     VIMRC="$VIMRC" python3 - <<'PY'
 import os, re
 p = os.environ["VIMRC"]; s = open(p).read()
-s = re.sub(r'\n*^".*>>> plzrun-auto-indent >>>.*?<<< plzrun-auto-indent <<<.*?$\n?',
+# [^\n]* : 마커 '줄' 안에서만 매칭 (re.S 의 .* 가 앞선 사용자 주석 줄까지 삼키는 것 방지)
+s = re.sub(r'\n*^"[^\n]*>>> plzrun-auto-indent >>>.*?<<< plzrun-auto-indent <<<[^\n]*$\n?',
            '\n', s, flags=re.S | re.M)
 open(p, "w").write(s)
 PY

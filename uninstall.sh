@@ -6,7 +6,6 @@
 #    2) ~/.astylerc          (우리 마커가 있을 때만)
 #    3) ~/.vimrc 의 마커 블록 (>>> plzrun-auto-indent >>> ~ <<<)
 #    4) VSCode settings.json 에서 우리가 넣은 키만 제거
-#       + [WSL] Windows keybindings.json 의 alt+left/right 항목(우리 것)만 제거
 #    5) VSCode 확장 jkillian.custom-local-formatters 제거
 #  사용법:  bash uninstall.sh
 # ============================================================================
@@ -50,8 +49,7 @@ import sys, re
 p = sys.argv[1]
 s = open(p).read()
 # 마커 블록(앞의 빈 줄 포함) 제거
-# [^\n]* : 마커 '줄' 안에서만 매칭 (re.S 의 .* 가 앞선 사용자 주석 줄까지 삼키는 것 방지)
-s2 = re.sub(r'\n*^"[^\n]*>>> plzrun-auto-indent >>>.*?^"[^\n]*<<< plzrun-auto-indent <<<[^\n]*$\n?',
+s2 = re.sub(r'\n*^".*>>> plzrun-auto-indent >>>.*?^".*<<< plzrun-auto-indent <<<.*?$\n?',
             '\n', s, flags=re.S | re.M)
 open(p, "w").write(s2)
 PY
@@ -61,33 +59,13 @@ else
 fi
 
 # --- 4) VSCode settings.json 에서 우리 키만 제거 ---
-# install.sh 와 동일하게 Remote-WSL 의 Windows User 경로도 탐지(거기에도 썼으므로 제거 대상)
-IS_WSL=0
-if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
-    IS_WSL=1
-fi
-WIN_USER_DIR=""
+# install.sh 와 동일하게 Remote-WSL 의 Windows User 설정 경로도 탐지(거기에도 썼으므로 제거 대상)
 WIN_USER_SETTINGS=""
-if [ "$IS_WSL" = "1" ]; then
-    if command -v wslpath >/dev/null 2>&1; then
-        _appdata=""
-        if command -v cmd.exe >/dev/null 2>&1; then
-            _appdata="$(cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')"
-        fi
-        if [ -z "$_appdata" ] && command -v powershell.exe >/dev/null 2>&1; then
-            _appdata="$(cd /mnt/c 2>/dev/null && powershell.exe -NoProfile -Command 'Write-Output $env:APPDATA' 2>/dev/null | tr -d '\r')"
-        fi
-        if [ -n "$_appdata" ]; then
-            _roaming="$(wslpath -u "$_appdata" 2>/dev/null)"
-            [ -n "$_roaming" ] && WIN_USER_DIR="$_roaming/Code/User"
-        fi
+if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+    if command -v cmd.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+        _appdata="$(cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')"
+        [ -n "$_appdata" ] && WIN_USER_SETTINGS="$(wslpath -u "$_appdata" 2>/dev/null)/Code/User/settings.json"
     fi
-    if [ -z "$WIN_USER_DIR" ]; then
-        for _d in /mnt/c/Users/*/AppData/Roaming/Code/User; do
-            [ -d "$_d" ] && { WIN_USER_DIR="$_d"; break; }
-        done
-    fi
-    [ -n "$WIN_USER_DIR" ] && WIN_USER_SETTINGS="$WIN_USER_DIR/settings.json"
 fi
 
 OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
@@ -212,60 +190,6 @@ for p in targets:
         print(f"  VSCode 설정에서 우리 키 제거: {p}")
 PY
 log "VSCode settings 정리 완료"
-
-# --- 4.5) [Windows(WSL) 한정] keybindings.json 에서 우리가 넣은 2개 항목만 제거 ---
-# install.sh 5.5 단계가 넣은 alt+left/right → cursorHome/cursorEnd (exact match 로만 식별)
-if [ -n "$WIN_USER_DIR" ] && [ -f "$WIN_USER_DIR/keybindings.json" ]; then
-    WIN_KEYBINDINGS="$WIN_USER_DIR/keybindings.json" python3 - <<'PY'
-import json, os, re
-p = os.environ["WIN_KEYBINDINGS"]
-
-def loads_jsonc(text):
-    out = []; i = 0; n = len(text); in_str = False; esc = False
-    while i < n:
-        c = text[i]
-        if in_str:
-            out.append(c)
-            if esc: esc = False
-            elif c == "\\": esc = True
-            elif c == '"': in_str = False
-            i += 1; continue
-        if c == '"':
-            in_str = True; out.append(c); i += 1; continue
-        if c == "/" and i + 1 < n and text[i+1] == "/":
-            while i < n and text[i] != "\n": i += 1
-            continue
-        if c == "/" and i + 1 < n and text[i+1] == "*":
-            i += 2
-            while i + 1 < n and not (text[i] == "*" and text[i+1] == "/"): i += 1
-            i += 2; continue
-        out.append(c); i += 1
-    s = "".join(out)
-    s = re.sub(r",(\s*[}\]])", r"\1", s).strip()
-    return json.loads(s) if s else []
-
-OUR_KB = [
-    {"key": "alt+left",  "command": "cursorHome", "when": "textInputFocus"},
-    {"key": "alt+right", "command": "cursorEnd",  "when": "textInputFocus"},
-]
-try:
-    arr = loads_jsonc(open(p).read())
-except Exception as e:
-    print(f"  ! {p} 파싱 실패 → 건너뜀(원본 보존) ({e})"); raise SystemExit(0)
-if not isinstance(arr, list):
-    print(f"  ! {p} 최상위가 배열이 아님 → 건너뜀(원본 보존)"); raise SystemExit(0)
-new = [e for e in arr if e not in OUR_KB]
-if len(new) != len(arr):
-    with open(p, "w") as f:
-        json.dump(new, f, indent=4, ensure_ascii=False); f.write("\n")
-    print(f"  keybindings 에서 우리 항목 {len(arr)-len(new)}개 제거: {p}")
-else:
-    print(f"  keybindings 에 우리 항목 없음 (건너뜀): {p}")
-PY
-    log "VSCode keybindings 정리 완료"
-else
-    log "Windows keybindings.json 없음/비WSL (건너뜀)"
-fi
 
 # 원래값 백업 파일 정리 (복원 끝났으니 제거)
 rm -f "$HOME/.config/plzrun-auto-indent/orig-settings.json"

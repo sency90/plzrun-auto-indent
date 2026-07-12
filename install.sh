@@ -16,10 +16,6 @@ warn() { printf '\033[1;33m[plzrun:warn]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[plzrun:err]\033[0m %s\n' "$*" >&2; exit 1; }
 
 OS="$(uname -s)"
-IS_WSL=0    # Windows(WSL Ubuntu) 여부 — Alt+Left/Right 매핑 등 WSL 한정 단계에서 사용
-if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
-    IS_WSL=1
-fi
 EXT_ID="jkillian.custom-local-formatters"
 ASTYLE_SRC="$SCRIPT_DIR/vendor/astyle-3.6.16/src"
 ASTYLE_DEST="$HOME/.local/bin/astyle"     # 빌드 결과 설치 위치 (우리가 생성)
@@ -99,8 +95,7 @@ if [ -f "$VIMRC" ] && grep -q "plzrun-auto-indent" "$VIMRC"; then
     VIMRC="$VIMRC" python3 - <<'PY'
 import os, re
 p = os.environ["VIMRC"]; s = open(p).read()
-# [^\n]* : 마커 '줄' 안에서만 매칭 (re.S 의 .* 가 앞선 사용자 주석 줄까지 삼키는 것 방지)
-s = re.sub(r'\n*^"[^\n]*>>> plzrun-auto-indent >>>.*?<<< plzrun-auto-indent <<<[^\n]*$\n?',
+s = re.sub(r'\n*^".*>>> plzrun-auto-indent >>>.*?<<< plzrun-auto-indent <<<.*?$\n?',
            '\n', s, flags=re.S | re.M)
 open(p, "w").write(s)
 PY
@@ -112,21 +107,6 @@ fi
     echo "autocmd FileType c,cpp setlocal equalprg=$ASTYLE_DEST"
     echo "\" Makefile/Go: 탭 필수 → 전역 expandtab 무시"
     echo "autocmd FileType make,go setlocal noexpandtab"
-    if [ "$IS_WSL" = "1" ]; then
-        # Windows(WSL) 한정 — macOS 는 cmd+←/→ 가 이미 Home/End 라 이 매핑을 쓰지 않음
-        printf '%s\n' \
-            '" Alt+Left = 줄 처음(Home), Alt+Right = 줄 끝(End)  [Windows/WSL 한정]' \
-            '" 터미널이 Alt+화살표를 raw 시퀀스(ESC [1;3D / ESC [1;3C)로 보내는 경우' \
-            'noremap  <silent> <Esc>[1;3D <Home>' \
-            'noremap  <silent> <Esc>[1;3C <End>' \
-            'inoremap <silent> <Esc>[1;3D <Home>' \
-            'inoremap <silent> <Esc>[1;3C <End>' \
-            '" 시퀀스를 <M-Left>/<M-Right> 로 직접 해석하는 vim(신형 vim/gvim/neovim)' \
-            'noremap  <silent> <M-Left>  <Home>' \
-            'noremap  <silent> <M-Right> <End>' \
-            'inoremap <silent> <M-Left>  <Home>' \
-            'inoremap <silent> <M-Right> <End>'
-    fi
     echo "\" <<< plzrun-auto-indent <<<"
 } >> "$VIMRC"
 log "~/.vimrc 패치 완료 (equalprg=$ASTYLE_DEST)"
@@ -135,37 +115,20 @@ log "~/.vimrc 패치 완료 (equalprg=$ASTYLE_DEST)"
 # Remote-WSL 대응: WSL 안에서 돌면 VSCode(원격)가 실제로 읽는 User 설정은
 #   Windows 쪽(%APPDATA%\Code\User\settings.json)에 있다. 그 경로를 cmd.exe+wslpath 로
 #   찾아내 병합 대상에 추가한다. (WSL 안 ~/.config/Code/User 는 네이티브 GUI 전용이라 안 읽힘)
-WIN_USER_DIR=""       # Windows 쪽 %APPDATA%\Code\User (settings/keybindings 공용)
 WIN_USER_SETTINGS=""
-if [ "$IS_WSL" = "1" ]; then
-    # (1) cmd.exe 로 %APPDATA% 조회 → (2) powershell.exe 폴백 → (3) /mnt/c 직접 탐색
-    if command -v wslpath >/dev/null 2>&1; then
-        _appdata=""
-        if command -v cmd.exe >/dev/null 2>&1; then
-            _appdata="$(cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')" || _appdata=""
-        fi
-        if [ -z "$_appdata" ] && command -v powershell.exe >/dev/null 2>&1; then
-            _appdata="$(cd /mnt/c 2>/dev/null && powershell.exe -NoProfile -Command 'Write-Output $env:APPDATA' 2>/dev/null | tr -d '\r')" || _appdata=""
-        fi
+if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+    if command -v cmd.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+        _appdata="$(cd /mnt/c 2>/dev/null && cmd.exe /c 'echo %APPDATA%' 2>/dev/null | tr -d '\r')"
         if [ -n "$_appdata" ]; then
-            _roaming="$(wslpath -u "$_appdata" 2>/dev/null)"
+            _winuser="$(wslpath -u "$_appdata" 2>/dev/null)/Code/User/settings.json"
             # /mnt/c 가 실제로 마운트돼 접근 가능할 때만 채택
-            if [ -n "$_roaming" ] && { [ -d "$_roaming" ] || [ -d "/mnt/c" ]; }; then
-                WIN_USER_DIR="$_roaming/Code/User"
+            if [ -d "$(dirname "$(dirname "$_winuser")")" ] || [ -d "/mnt/c" ]; then
+                WIN_USER_SETTINGS="$_winuser"
+                log "Remote-WSL 감지 → Windows User 설정도 병합: $WIN_USER_SETTINGS"
             fi
         fi
     fi
-    if [ -z "$WIN_USER_DIR" ]; then
-        for _d in /mnt/c/Users/*/AppData/Roaming/Code/User; do
-            [ -d "$_d" ] && { WIN_USER_DIR="$_d"; break; }
-        done
-    fi
-    if [ -n "$WIN_USER_DIR" ]; then
-        WIN_USER_SETTINGS="$WIN_USER_DIR/settings.json"
-        log "Remote-WSL 감지 → Windows User 설정도 병합: $WIN_USER_SETTINGS"
-    else
-        warn "WSL이지만 Windows User 설정 경로를 못 찾음 → WSL 쪽만 병합(키 연결이 회사 VSCode에 안 먹으면 수동 추가 필요)."
-    fi
+    [ -z "$WIN_USER_SETTINGS" ] && warn "WSL이지만 Windows User 설정 경로를 못 찾음 → WSL 쪽만 병합(키 연결이 회사 VSCode에 안 먹으면 수동 추가 필요)."
 fi
 
 ASTYLE_DEST="$ASTYLE_DEST" OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
@@ -278,79 +241,6 @@ open(BACKUP, "w").write(json.dumps(backup, ensure_ascii=False, indent=2))
 PY
 log "VSCode 전역 settings.json 병합 완료"
 
-# --- 5.5 [Windows(WSL) 한정] VSCode keybindings: Alt+Left/Right → Home/End ---
-# macOS 는 cmd+←/→ 가 이미 Home/End 라 불필요 → WSL 에서만 적용.
-# keybindings.json 은 .vscode-server 가 아니라 Windows 쪽
-#   %APPDATA%\Code\User\keybindings.json 에 있다 (Remote-WSL 이어도 UI측 파일).
-# JSONC 배열 → 주석/후행쉼표 제거 후 파싱, 기존 사용자 바인딩 보존 + 우리 2개만 append.
-if [ "$IS_WSL" = "1" ] && [ -n "$WIN_USER_DIR" ]; then
-    WIN_KEYBINDINGS="$WIN_USER_DIR/keybindings.json" python3 - <<'PY'
-import json, os, re
-p = os.environ["WIN_KEYBINDINGS"]
-
-def loads_jsonc(text):
-    out = []; i = 0; n = len(text); in_str = False; esc = False
-    while i < n:
-        c = text[i]
-        if in_str:
-            out.append(c)
-            if esc: esc = False
-            elif c == "\\": esc = True
-            elif c == '"': in_str = False
-            i += 1; continue
-        if c == '"':
-            in_str = True; out.append(c); i += 1; continue
-        if c == "/" and i + 1 < n and text[i+1] == "/":
-            while i < n and text[i] != "\n": i += 1
-            continue
-        if c == "/" and i + 1 < n and text[i+1] == "*":
-            i += 2
-            while i + 1 < n and not (text[i] == "*" and text[i+1] == "/"): i += 1
-            i += 2; continue
-        out.append(c); i += 1
-    s = "".join(out)
-    s = re.sub(r",(\s*[}\]])", r"\1", s).strip()
-    return json.loads(s) if s else []   # 주석만 있던 파일(신규 기본 상태) → 빈 배열
-
-# uninstall 이 '정확히 이 두 항목'만 제거할 수 있게 exact match 로 식별되는 형태 유지
-OUR_KB = [
-    {"key": "alt+left",  "command": "cursorHome", "when": "textInputFocus"},
-    {"key": "alt+right", "command": "cursorEnd",  "when": "textInputFocus"},
-]
-arr = []; had_comments = False
-if os.path.exists(p):
-    t = open(p).read().strip()
-    had_comments = bool(t) and ("//" in t or "/*" in t)
-    try:
-        arr = loads_jsonc(t) if t else []
-    except Exception as e:
-        print(f"  ! 건너뜀(원본 보존): {p}")
-        print(f"    JSON 문법 오류로 안전하게 병합할 수 없습니다 → {e}")
-        print(f"    이 파일의 문법 오류를 고친 뒤 install.sh 를 다시 실행하세요.")
-        raise SystemExit(0)
-    if not isinstance(arr, list):
-        print(f"  ! 건너뜀(원본 보존): {p} 최상위가 배열이 아닙니다.")
-        raise SystemExit(0)
-else:
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-if had_comments:
-    print(f"  (참고) {p} 의 주석은 병합 저장 시 제거됩니다(바인딩은 모두 보존).")
-changed = False
-for e in OUR_KB:
-    if e not in arr:
-        arr.append(e); changed = True
-if changed or not os.path.exists(p):
-    with open(p, "w") as f:
-        json.dump(arr, f, indent=4, ensure_ascii=False); f.write("\n")
-print(f"  VSCode keybindings 병합: {p}")
-PY
-    log "VSCode keybindings 병합 완료 (Alt+Left/Right → 줄 처음/끝)"
-elif [ "$IS_WSL" = "1" ]; then
-    warn "Windows User 경로를 못 찾아 keybindings(Alt+Left/Right) 병합 건너뜀 → 수동 추가 필요."
-else
-    log "Alt+Left/Right 키바인딩: WSL 아님 → 건너뜀 (macOS 는 cmd+←/→ 가 이미 Home/End)"
-fi
-
 # --- 6. VSCode 확장 자동 설치 (astyle 포매터 다리) ---
 if command -v code >/dev/null 2>&1; then
     if code --install-extension "$EXT_ID" --force >/dev/null 2>&1; then
@@ -409,7 +299,4 @@ log "✅ 설치 완료!"
 echo "   • astyle      : $ASTYLE_DEST"
 echo "   • 터미널 vim  : 새로 켜고  gg=G"
 echo "   • VSCode      : Reload Window 후  gg=G (또는 Format Document)"
-if [ "$IS_WSL" = "1" ]; then
-    echo "   • Alt+←/→     : 줄 처음/끝 (VSCode·터미널 vim, Windows/WSL 한정)"
-fi
 echo "   • 제거        : bash uninstall.sh"

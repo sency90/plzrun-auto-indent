@@ -428,6 +428,28 @@ def corpus_cases(e, dirs, nfiles, seed):
     print("corpus:", stats)
 
 
+def install_cases(e):
+    """다시 설치해도 마커 블록 하나, 제거하면 사용자 줄만 남고 도우미 폴더도 사라진다."""
+    env = dict(os.environ, HOME=e.home, PATH=os.path.join(e.tmp, "shim") + os.pathsep + os.environ["PATH"])
+    vimrc = os.path.join(e.home, ".vimrc")
+    share = os.path.join(e.home, ".local/share/plzrun-auto-indent")
+    subprocess.run(["bash", os.path.join(REPO, "install.sh")], env=env,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    with open(vimrc) as f:
+        body = f.read()
+    check("reinstall-one-block", body.count(">>> plzrun-auto-indent >>>") == 1 and
+          body.startswith('" 사용자 줄 1\nset nocompatible\n'), body)
+    check("installed-files", os.path.isfile(os.path.join(share, "plzrun-reindent.vim")) and
+          os.access(os.path.join(share, "plzrun_reindent.py"), os.X_OK))
+    subprocess.run(["bash", os.path.join(REPO, "uninstall.sh")], env=env,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with open(vimrc) as f:
+        body = f.read()
+    check("uninstall-vimrc", "plzrun" not in body and
+          body.startswith('" 사용자 줄 1\nset nocompatible'), body)
+    check("uninstall-share", not os.path.exists(share))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", action="append", default=[])
@@ -440,6 +462,7 @@ def main():
         builtin_cases(e)
         if o.corpus:
             corpus_cases(e, o.corpus, o.files, o.seed)
+        install_cases(e)
     finally:
         if not o.keep:
             shutil.rmtree(e.tmp, ignore_errors=True)

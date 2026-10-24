@@ -10,7 +10,7 @@ C/C++ 코드 자동정렬 + vim 손버릇(`ko`) 들여쓰기를 **어느 PC(mac/
 |---|---|---|
 | **astyle** | C/C++ 코드 정렬기(포매터) CLI 프로그램 | `~/.local/bin/astyle` (소스에서 직접 빌드) |
 | **`~/.astylerc`** | astyle이 따를 "정렬 규칙" 텍스트 파일 | 홈 디렉토리 |
-| **`~/.vimrc` 패치** | 터미널 vim의 `gg=G`가 astyle을 부르게 | 홈 |
+| **`~/.vimrc` 패치** | 터미널 vim의 `=`(gg=G, V=, ==)가 astyle을 부르게 | 홈 |
 | **VSCode 설정 + 확장 2개** | VSCode에서도 같은 정렬 + `ko` 들여쓰기 | VSCode user settings / extensions |
 | **install.sh / uninstall.sh** | 위 전부를 깔고/지우는 스크립트 | repo |
 
@@ -46,6 +46,29 @@ autocmd FileType c,cpp setlocal equalprg=astyle   " gg=G 하면 버퍼를 astyle
 autocmd FileType make,go setlocal noexpandtab     " Makefile/Go는 탭 유지
 ```
 → 터미널 vim에서 `gg=G` = 파일 전체를 astyle(`~/.astylerc` 규칙)로 정렬. VSCode와 같은 결과.
+
+### 2-1. 범위 `=` 가 0열로 붙던 문제와 고친 방법
+
+`equalprg` 는 **고른 줄만** 프로그램에 넘긴다. `V`로 함수 안 몇 줄을 골라 `=` 하면 astyle 은
+바깥 `for`·`if` 를 모르고 0단계부터 들여써서 전부 왼쪽 벽에 붙었다(`gg=G` 는 전체가 들어가 정상).
+
+그래서 지금은 `~/.vimrc` 마커 블록이 `vim/plzrun-reindent.vim` 을 읽고, 이 파일이 c/cpp 버퍼의
+`=`·`==`·visual `=` 를 `g@`(operatorfunc) 로 받는다. 범위가 정해지면:
+
+1. 버퍼 **전체**를 `vim/plzrun_reindent.py` 에 넘긴다. 도우미는 전체를 astyle 로 돌린다(= `gg=G` 결과).
+2. 원래 줄과 정렬된 줄을 "공백을 뺀 글자 위치"로 맞춘다. 이 저장소의 astylerc 로는 astyle 이 공백·줄바꿈만
+   바꾸기 때문이다. 단 `if(x) // c` 다음 줄 `{` 를 붙일 때 `{` 를 주석 앞으로 옮기므로, 코드 글자와 주석 글자,
+   빈 줄을 따로 센다.
+3. 고른 범위의 첫 경계·끝 경계가 정렬 결과에서도 줄 경계이면 그 사이 줄을 그대로 가져온다. 범위 안의
+   `} else {` 가 두 줄로 쪼개져 줄 수가 늘어도 범위 안 일이라 괜찮다.
+4. 경계가 범위 밖 줄과 합쳐져 사라지면(범위 첫 줄 `{` 가 범위 밖 `if(x)` 에 붙어야 하는 경우 등) 범위 밖을
+   바꾸지 않으려고 그 줄은 **들여쓰기만** 고친다(줄을 합치지 않고, 줄 안 글자도 그대로).
+
+범위 밖 줄은 도우미가 아예 내보내지 않으므로 바뀔 수 없다. 전체 범위(`gg=G`, `ggVG=`)는 astyle 출력을
+그대로 쓴다. `:normal! =` 처럼 매핑을 거치지 않는 경로는 예전처럼 `equalprg` 로 간다.
+
+시험: `python3 tests/test_vim_range_indent.py [--corpus DIR]` — 임시 HOME 에 install.sh 를 돌리고 headless vim 으로
+비교한다(사용자 `~/.vimrc` 는 안 건드림).
 
 ---
 

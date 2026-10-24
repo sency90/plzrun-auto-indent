@@ -13,7 +13,7 @@ bash uninstall.sh    # 완전 제거 (만든 것만 정확히 되돌림)
 ```
 
 설치 후:
-- **터미널 vim**: 새로 켜고 `gg=G` → astyle 규칙으로 정렬
+- **터미널 vim**: 새로 켜고 `gg=G` → astyle 규칙으로 정렬. 일부만 `V`로 골라 `=`(또는 `==`, `=i{`) 해도 바깥 블록 깊이에 맞게 정렬
 - **VSCode**: `Reload Window` 후 `gg=G`(VSCodeVim) 또는 Format Document
 
 ## 요구사항 (install.sh 가 먼저 검사, 미충족 시 아무것도 안 건드리고 중단)
@@ -30,7 +30,9 @@ bash uninstall.sh    # 완전 제거 (만든 것만 정확히 되돌림)
 
 1. **astyle 빌드** — `vendor/astyle-3.6.16/src/*.cpp` 를 `g++ -std=c++17` 로 컴파일 → `~/.local/bin/astyle` (Linux 구버전은 `-lstdc++fs` 자동 폴백)
 2. **`~/.astylerc`** 배치 — 정렬 규칙 단일 소스 (`astylerc` 복사)
-3. **`~/.vimrc`** 패치 — `equalprg=<astyle 절대경로>`(c/cpp) + Makefile/Go `noexpandtab` (마커 블록, 재실행 시 경로 갱신)
+3. **`~/.vimrc`** 패치 — c/cpp 의 `=` 연산자를 astyle 로(마커 블록, 재실행 시 경로 갱신) + Makefile/Go `noexpandtab`
+   - `~/.local/share/plzrun-auto-indent/` 에 `plzrun-reindent.vim`·`plzrun_reindent.py` 설치. `=`·`==`·visual `=` 를 받아 **버퍼 전체**를 astyle 에 넘기고 고른 범위만 바꾼다 → `V=` 해도 0열에 붙지 않음, 범위 밖 줄은 그대로, `gg=G` 결과는 예전과 바이트 단위로 같음
+   - 도우미 파일이 없으면 예전처럼 `equalprg=<astyle>` 만 건다
 4. **VSCode 전역 settings.json 병합** (기존 설정 보존) — astyle 포매터 등록 + cpp/c 기본 포매터 + `editor.autoIndent: "keep"`(**전역/모든 언어**: `{` 사이 Enter 시 자동 펼침 없이 개행 1개, vim 손버릇 호환) + Makefile/Go 탭 + `*.mak`/`*.mk`/`GNUmakefile` 인식. macOS / Linux / Remote-WSL 경로 자동 판별.
    - `[cpp]`/`[c]` 는 덮어쓰지 않고 우리 키만 병합. `editor.autoIndent` 같은 **전역 공통키는 원래값을 `~/.config/plzrun-auto-indent/orig-settings.json` 에 백업** → uninstall 시 원래값으로 **완벽 복원**(원래 없었으면 제거)
    - **VSCodeVim `o`/`O` 리맵** 추가(`vim.normalModeKeyBindingsNonRecursive`): native `o`(줄 열기+입력모드) 후 **`plzrun.fixIndent`(전용 확장)** 로 브래킷 깊이 기반 들여쓰기. `autoIndent:keep`라 `{` 사이 Enter는 1줄이면서도 `ko` 손버릇에서 커서가 항상 블록에 맞는 들여쓰기로 감(**빈 줄 위가 빈 줄이어도 정확** — reindent의 0열 문제 해결). 배열엔 **우리 2개 항목만 append**(사용자 다른 리맵 보존), uninstall 시 **우리 항목만 제거**
@@ -42,7 +44,7 @@ bash uninstall.sh    # 완전 제거 (만든 것만 정확히 되돌림)
 
 - `~/.local/bin/astyle` (우리가 빌드한 Artistic Style 인지 확인 후)
 - `~/.astylerc` (우리 마커 헤더 있을 때만)
-- `~/.vimrc` 의 `plzrun-auto-indent` 마커 블록
+- `~/.vimrc` 의 `plzrun-auto-indent` 마커 블록 + `~/.local/share/plzrun-auto-indent/` (vim 범위 `=` 도우미)
 - VSCode settings.json 에서 **우리가 넣은 키만** (사용자 다른 설정 보존)
 - (macOS) keybindings.json 의 Option+←/→ 히스토리 항목 2개 (exact match 만 제거)
 - VSCode 확장 `jkillian.custom-local-formatters`

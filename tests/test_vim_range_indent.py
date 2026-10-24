@@ -26,6 +26,8 @@ import sys
 import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "vim"))
+import plzrun_reindent as reindent  # noqa: E402
 
 FAILS = []
 COUNT = [0]
@@ -119,6 +121,10 @@ call writefile([json_encode(s:res)], '%s')
                        stderr=subprocess.DEVNULL, timeout=600)
         with open(out) as f:
             return [("\n".join(x) + "\n") for x in json.load(f)]
+
+
+def lines_b(t):
+    return [x.encode() for x in lines(t)]
 
 
 def lines(t):
@@ -284,6 +290,11 @@ def builtin_cases(e):
     # 빈 파일, 한 줄 파일
     check("empty-file", e.vim("", ["normal gg=G"]) == "")
     check("one-line", e.vim("int a;\n", ["normal =="]) == "int a;\n")
+    # 파일 끝 빈 줄 보존(gg=G 예전과 같게, 범위 = 도 끝 빈 줄 안 먹음)
+    t = "int f() {\nreturn 0;\n}\n\n\n"
+    a = e.vim(t, ["normal gg=G"])
+    check("trailing-blank-ggG", a == e.vim(t, ["normal gg=G"], rc=e.rc_old) == e.astyle_text(t), repr(a))
+    check("trailing-blank-range", e.vim(t, [vrange(2, 2)]) == t.replace("\nreturn", "\n    return"))
 
 
 MESSY = """#include <cstdio>
@@ -355,7 +366,8 @@ def corpus_cases(e, dirs, nfiles, seed):
     rnd = random.Random(seed)
     rnd.shuffle(files)
     picked = 0
-    stats = {"files": 0, "ggG": 0, "ranges": 0, "restore": 0, "restore_skip": 0}
+    stats = {"files": 0, "ggG": 0, "ranges": 0, "content_ws_only": 0,
+             "restore": 0, "restore_skip": 0}
     for p in files:
         if picked >= nfiles:
             break
@@ -365,6 +377,8 @@ def corpus_cases(e, dirs, nfiles, seed):
         except (UnicodeDecodeError, OSError):
             continue
         text = text.replace("\r\n", "\n")
+        if text.startswith("\ufeff"):        # BOM 은 vim 이 버퍼 밖에서 따로 다룬다
+            text = text[1:]
         if "\r" in text or "\0" in text or not text.strip():
             continue
         if not text.endswith("\n"):
@@ -385,7 +399,16 @@ def corpus_cases(e, dirs, nfiles, seed):
         for (x, y), got in zip(ranges, e.vim_batch(text, ranges)):
             stats["ranges"] += 1
             check("corpus-outside %s %d-%d" % (p, x, y), outside_same(text, got, x, y))
-            check("corpus-content %s %d-%d" % (p, x, y), e.astyle_text(got) == full)
+            if e.astyle_text(got) == full:
+                ok = True
+            else:
+                # 여러 줄 블록 주석의 일부만 고르면 astyle 은 주석 첫 줄 기준 상대
+                # 들여쓰기를 쓰므로 다시 돌린 결과가 달라질 수 있다. 이때는 공백 말고는
+                # (코드 글자·주석 글자 흐름) 아무것도 안 바뀌었는지만 본다.
+                sa, sb = reindent.Scan(lines_b(text)), reindent.Scan(lines_b(got))
+                ok = (sa.code_stream, sa.cmt_stream) == (sb.code_stream, sb.cmt_stream)
+                stats["content_ws_only"] += 1
+            check("corpus-content %s %d-%d" % (p, x, y), ok)
         # 되살리기: 정렬된 파일에서 범위 줄을 0열로 → V= → 원래대로
         fl = lines(full)
         rr = []

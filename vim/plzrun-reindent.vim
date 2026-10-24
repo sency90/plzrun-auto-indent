@@ -44,11 +44,12 @@ function! PlzrunReindentLines(first, last) abort
   endif
   let l:cmd = shellescape(l:python) . ' ' . shellescape(s:helper) . ' '
         \ . l:first . ' ' . l:last . ' ' . shellescape(l:astyle)
-  let l:buf = getline(1, '$')
+  " 리스트로 넘기면 마지막 줄 뒤 줄바꿈이 빠져 끝의 빈 줄이 사라진다 → 문자열로
+  let l:input = join(getline(1, '$'), "\n") . "\n"
   if exists('*systemlist')
-    let l:new = systemlist(l:cmd, l:buf)
+    let l:new = systemlist(l:cmd, l:input)
   else
-    let l:new = split(system(l:cmd, join(l:buf, "\n") . "\n"), "\n", 1)
+    let l:new = split(system(l:cmd, l:input), "\n", 1)
     if !empty(l:new) && l:new[-1] ==# ''
       call remove(l:new, -1)
     endif

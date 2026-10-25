@@ -5,6 +5,7 @@
 #    1) ~/.local/bin/astyle  (우리가 빌드·설치한 것)
 #    2) ~/.astylerc          (우리 마커가 있을 때만)
 #    3) ~/.vimrc 의 마커 블록 (>>> plzrun-auto-indent >>> ~ <<<)
+#       + ~/.local/share/plzrun-auto-indent (vim 범위 '=' 도우미 2개 파일)
 #    4) VSCode settings.json 에서 우리가 넣은 키만 제거
 #       (macOS: keybindings.json 의 Option+←/→ 히스토리 항목 2개도 제거)
 #    5) VSCode 확장 jkillian.custom-local-formatters 제거
@@ -30,6 +31,16 @@ if [ -f "$ASTYLE_DEST" ]; then
     fi
 else
     log "astyle 바이너리 없음 (건너뜀)"
+fi
+
+# --- 1-1) vim 범위 '=' 도우미 제거 (우리가 넣은 두 파일만, 폴더는 비었을 때만) ---
+VIM_SHARE="$HOME/.local/share/plzrun-auto-indent"
+if [ -d "$VIM_SHARE" ]; then
+    rm -f "$VIM_SHARE/plzrun-reindent.vim" "$VIM_SHARE/plzrun_reindent.py"
+    rm -rf "$VIM_SHARE/__pycache__"
+    rmdir "$VIM_SHARE" 2>/dev/null && log "제거: $VIM_SHARE" || warn "$VIM_SHARE 에 다른 파일이 있어 폴더는 보존"
+else
+    log "vim 범위 정렬 도우미 없음 (건너뜀)"
 fi
 
 # --- 2) ~/.astylerc 제거 (우리 마커 헤더가 있을 때만) ---

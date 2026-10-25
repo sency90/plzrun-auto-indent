@@ -2,7 +2,7 @@
 # ============================================================================
 #  plzrun-auto-indent installer  (self-contained / air-gapped 가능)
 #  - astyle 를 외부 패키지매니저 없이 repo 동봉 소스에서 g++ 로 직접 빌드
-#  - 정렬 규칙(~/.astylerc) + 터미널 vim(equalprg) + VSCode(설정·확장) 자동 구성
+#  - 정렬 규칙(~/.astylerc) + 터미널 vim(= 연산자) + VSCode(설정·확장) 자동 구성
 #
 #  설계 원칙: "요구사항 검사 → 임시 빌드 성공 → 그 다음에야 실제 설치"
 #             (요구사항 미충족 시 시스템을 전혀 건드리지 않고 중단)
@@ -88,7 +88,18 @@ log "astyle 설치: $ASTYLE_DEST"
 cp "$SCRIPT_DIR/astylerc" "$HOME/.astylerc"
 log "~/.astylerc 설치 완료"
 
-# --- 4. ~/.vimrc 패치 (터미널 vim gg=G → astyle 절대경로) ---
+# --- 4. 터미널 vim: 범위 '=' 도우미 설치 + ~/.vimrc 패치 ---
+#     equalprg 만 쓰면 V= / == / =i{ 가 선택 줄만 astyle 에 넘겨 0열에 붙는다.
+#     plzrun-reindent.vim 이 '=' 연산자를 받아 버퍼 전체를 plzrun_reindent.py 에
+#     넘기고 범위만 바꾼다(gg=G 결과는 astyle 그대로). 도우미가 없으면 예전 equalprg.
+VIM_SHARE="$HOME/.local/share/plzrun-auto-indent"
+mkdir -p "$VIM_SHARE"
+install -m 0644 "$SCRIPT_DIR/vim/plzrun-reindent.vim" "$VIM_SHARE/plzrun-reindent.vim"
+install -m 0755 "$SCRIPT_DIR/vim/plzrun_reindent.py" "$VIM_SHARE/plzrun_reindent.py"
+log "vim 범위 정렬 도우미 설치: $VIM_SHARE"
+PY3_PATH="$(command -v python3)"
+vimq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"; }   # vim 작은따옴표 문자열
+
 #     기존 마커 블록이 있으면 제거 후 최신 경로로 다시 기록 (idempotent + 경로 갱신)
 VIMRC="$HOME/.vimrc"
 if [ -f "$VIMRC" ] && grep -q "plzrun-auto-indent" "$VIMRC"; then
@@ -104,13 +115,19 @@ fi
 {
     echo ""
     echo "\" >>> plzrun-auto-indent >>>"
-    echo "\" C/C++: gg=G 를 astyle(~/.astylerc 규칙)로 정렬"
-    echo "autocmd FileType c,cpp setlocal equalprg=$ASTYLE_DEST"
+    echo "\" C/C++: = 를 astyle(~/.astylerc 규칙)로 정렬. V= / == / =i{ 도 파일 전체 맥락 기준"
+    echo "let g:plzrun_astyle = $(vimq "$ASTYLE_DEST")"
+    echo "let g:plzrun_python = $(vimq "$PY3_PATH")"
+    echo "if filereadable($(vimq "$VIM_SHARE/plzrun-reindent.vim"))"
+    echo "  execute 'source' fnameescape($(vimq "$VIM_SHARE/plzrun-reindent.vim"))"
+    echo "else"
+    echo "  autocmd FileType c,cpp setlocal equalprg=$ASTYLE_DEST"
+    echo "endif"
     echo "\" Makefile/Go: 탭 필수 → 전역 expandtab 무시"
     echo "autocmd FileType make,go setlocal noexpandtab"
     echo "\" <<< plzrun-auto-indent <<<"
 } >> "$VIMRC"
-log "~/.vimrc 패치 완료 (equalprg=$ASTYLE_DEST)"
+log "~/.vimrc 패치 완료 (equalprg=$ASTYLE_DEST, 범위 = 도우미)"
 
 # --- 5. VSCode 전역 settings.json 병합 (기존 설정 보존) ---
 # Remote-WSL 대응: WSL 안에서 돌면 VSCode(원격)가 실제로 읽는 User 설정은
@@ -371,7 +388,7 @@ fi
 echo
 log "✅ 설치 완료!"
 echo "   • astyle      : $ASTYLE_DEST"
-echo "   • 터미널 vim  : 새로 켜고  gg=G"
+echo "   • 터미널 vim  : 새로 켜고  gg=G  (V= / == / =i{ 도 바깥 맥락 유지)"
 echo "   • VSCode      : Reload Window 후  gg=G (또는 Format Document)"
 if [ "$OS" = "Darwin" ]; then
     echo "   • Option+←/→  : 커서 위치 히스토리 뒤로/앞으로 (mac VSCode 한정)"

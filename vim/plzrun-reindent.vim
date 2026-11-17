@@ -6,7 +6,7 @@
 " gg=G 는 지금처럼 astyle 결과를 그대로 쓴다.
 "
 " install.sh 가 ~/.vimrc 마커 블록에서 아래 두 값을 정한 뒤 이 파일을 읽는다.
-"   g:plzrun_astyle   astyle 절대경로
+"   g:plzrun_astyle   astyle 경로 (vimrc 에는 $HOME . '/.local/bin/astyle' 로 적힌다)
 "   g:plzrun_python   python3 경로
 " vim 7.4 에서도 돌게 쓴다(회사 Linux/WSL).
 
@@ -94,7 +94,8 @@ function! s:Setup() abort
     return
   endif
   " 매핑이 안 먹는 경로(:normal! = 등)는 지금처럼 astyle 로 간다
-  execute 'setlocal equalprg=' . escape(get(g:, 'plzrun_astyle', 'astyle'), ' \|"')
+  " equalprg 는 셸로 실행된다 → 홈 경로에 공백이 있어도 한 단어가 되게 shellescape
+  execute 'setlocal equalprg=' . escape(shellescape(get(g:, 'plzrun_astyle', 'astyle')), ' \|"')
   nnoremap <buffer> <silent> <expr> = PlzrunReindentExpr()
   xnoremap <buffer> <silent> <expr> = PlzrunReindentExpr()
   nnoremap <buffer> <silent> <expr> == PlzrunReindentExpr() ==# 'g@' ? 'g@_' : '=='

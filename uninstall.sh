@@ -135,7 +135,8 @@ for p in targets:
     except Exception as e:
         print(f"  ! {p} 파싱 실패 → 건너뜀(원본 보존) ({e})"); continue
     changed = False
-    # 우리가 넣은 astyle 포매터 등록 제거
+    # 우리가 넣은 astyle 포매터 등록 제거.
+    # 값은 보지 않고 키째 지운다 → 새 값("$HOME/.local/bin/astyle")도, 옛 판의 절대 경로 값도 지워진다.
     if "customLocalFormatters.formatters" in cfg:
         cfg.pop("customLocalFormatters.formatters", None); changed = True
     # 전역 공통키: 백업된 원래값으로 복원 (없었으면 제거)

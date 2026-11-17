@@ -82,13 +82,27 @@ VSCode는 `settings.json`(JSON 파일)로 설정한다. install.sh가 여기에 
 - 절대 "settings.json 전체를 통째로 백업했다가 통째로 덮어쓰기" 안 한다 — 그러면 설치 후 사용자가 바꾼 다른 설정까지 날아간다.
 
 우리가 넣는 VSCode 설정:
-- `customLocalFormatters.formatters` → astyle을 포매터로 등록(아래 확장과 연결)
+- `customLocalFormatters.formatters` → astyle을 포매터로 등록(아래 확장과 연결). 명령 값은 `"$HOME/.local/bin/astyle"`
 - `[cpp]`/`[c]` defaultFormatter → astyle
 - `editor.autoIndent: "keep"` → **`{`+Enter가 자동으로 3줄로 펼쳐지지 않고 개행 1개만** (vim 손버릇 호환)
 - `[makefile]`/`[go]` 탭 강제, `*.mak`/`*.mk` 인식
 - `vim.normalModeKeyBindingsNonRecursive` → `o`/`O` 리맵(아래 설명)
 
 경로는 OS별 자동: mac=`~/Library/Application Support/Code/User/...`, Linux=`~/.config/Code/User/...`, Remote-WSL=`~/.vscode-server/...`.
+
+### 설정에 절대 경로를 쓰지 않는 이유
+예전에는 포매터 명령에 `/home/<이름>/.local/bin/astyle` 같은 절대 경로를 써넣었다.
+그 설정이 맥으로 넘어오면 맥에는 `/home/<이름>` 이 없어서 `gg=G` 가 `exited with code 127`(명령 없음)로 실패했다.
+
+지금은 실행할 때 그 기기의 홈으로 풀리는 값을 쓴다.
+
+- **VSCode**: `"$HOME/.local/bin/astyle"`. 포매터 확장은 명령을 셸로 실행한다(`spawn(command, {shell: true})`, 맥과 리눅스에서는 `/bin/sh -c`). 그래서 `$HOME` 이 실행하는 기기의 홈으로 바뀐다. 큰따옴표는 홈 경로에 공백이 있을 때를 위한 것이다.
+- **Remote-WSL**: 윈도우 쪽 User 설정에 같은 값이 들어간다. 이 확장은 작업 폴더가 있는 쪽(WSL)에서 도는 확장이라 명령도 WSL 안 `/bin/sh` 로 실행되고, `$HOME` 은 WSL 의 홈이 된다.
+- **`~/.vimrc`**: `let g:plzrun_astyle = $HOME . '/.local/bin/astyle'`. vim 이 켜질 때 `$HOME` 을 읽는다. python3 경로는 설치한 기기의 것을 적어 두지만, 그 경로가 없는 기기에서는 `PATH` 의 `python3` 를 쓴다.
+
+기기마다 따로 생기는 것은 그대로 둔다: astyle 실행 파일 자체(기기마다 빌드), `~/.config/plzrun-auto-indent/orig-settings.json`(그 기기 설정의 원래 값 기록).
+
+시험: `python3 tests/test_portable_paths.py` — 임시 홈에 설치한 뒤 홈을 통째로 다른 경로로 옮기고, 설정에 적힌 명령과 vim 의 `gg=G` 가 그대로 도는지 본다.
 
 ---
 

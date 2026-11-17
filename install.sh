@@ -19,6 +19,12 @@ OS="$(uname -s)"
 EXT_ID="jkillian.custom-local-formatters"
 ASTYLE_SRC="$SCRIPT_DIR/vendor/astyle-3.6.16/src"
 ASTYLE_DEST="$HOME/.local/bin/astyle"     # 빌드 결과 설치 위치 (우리가 생성)
+# 설정 파일(VSCode settings.json, ~/.vimrc)에는 ASTYLE_DEST 를 풀어 쓴 절대 경로를 넣지 않는다.
+# 설정이 다른 기기로 넘어가면(/home/<이름> → /Users/<이름>) 그 경로가 없어 gg=G 가 127 로 실패한다.
+# 대신 실행 시점에 그 기기의 홈으로 풀리는 값을 넣는다.
+#   VSCode: 포매터 확장이 명령을 셸로 실행하므로($HOME 이 풀림) 아래 문자열 그대로.
+#           큰따옴표는 홈 경로에 공백이 있어도 한 단어로 넘어가게 한다.
+ASTYLE_CMD_VSCODE='"$HOME/.local/bin/astyle"'
 MIN_GCC_MAJOR=8                            # astyle 3.6.16 = C++17(std::filesystem)
 MIN_PY="3.6"                               # install 스크립트의 settings 병합용
 
@@ -99,6 +105,13 @@ install -m 0755 "$SCRIPT_DIR/vim/plzrun_reindent.py" "$VIM_SHARE/plzrun_reindent
 log "vim 범위 정렬 도우미 설치: $VIM_SHARE"
 PY3_PATH="$(command -v python3)"
 vimq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"; }   # vim 작은따옴표 문자열
+# vim 식으로 쓴 경로. 홈 아래 경로는 $HOME . '/…' 로 써서 ~/.vimrc 가 다른 기기로 가도 맞게 풀린다.
+vimpath() {
+    case "$1" in
+        "$HOME"/*) printf '$HOME . %s' "$(vimq "${1#"$HOME"}")" ;;
+        *)         vimq "$1" ;;
+    esac
+}
 
 #     기존 마커 블록이 있으면 제거 후 최신 경로로 다시 기록 (idempotent + 경로 갱신)
 VIMRC="$HOME/.vimrc"
@@ -116,18 +129,19 @@ fi
     echo ""
     echo "\" >>> plzrun-auto-indent >>>"
     echo "\" C/C++: = 를 astyle(~/.astylerc 규칙)로 정렬. V= / == / =i{ 도 파일 전체 맥락 기준"
-    echo "let g:plzrun_astyle = $(vimq "$ASTYLE_DEST")"
-    echo "let g:plzrun_python = $(vimq "$PY3_PATH")"
-    echo "if filereadable($(vimq "$VIM_SHARE/plzrun-reindent.vim"))"
-    echo "  execute 'source' fnameescape($(vimq "$VIM_SHARE/plzrun-reindent.vim"))"
+    echo "let g:plzrun_astyle = $(vimpath "$ASTYLE_DEST")"
+    echo "\" python3 경로가 이 기기에 없으면 plzrun-reindent.vim 이 PATH 의 python3 를 쓴다"
+    echo "let g:plzrun_python = $(vimpath "$PY3_PATH")"
+    echo "if filereadable($(vimpath "$VIM_SHARE/plzrun-reindent.vim"))"
+    echo "  execute 'source' fnameescape($(vimpath "$VIM_SHARE/plzrun-reindent.vim"))"
     echo "else"
-    echo "  autocmd FileType c,cpp setlocal equalprg=$ASTYLE_DEST"
+    echo "  autocmd FileType c,cpp execute 'setlocal equalprg=' . escape(shellescape(g:plzrun_astyle), ' \\|\"')"
     echo "endif"
     echo "\" Makefile/Go: 탭 필수 → 전역 expandtab 무시"
     echo "autocmd FileType make,go setlocal noexpandtab"
     echo "\" <<< plzrun-auto-indent <<<"
 } >> "$VIMRC"
-log "~/.vimrc 패치 완료 (equalprg=$ASTYLE_DEST, 범위 = 도우미)"
+log "~/.vimrc 패치 완료 (astyle=\$HOME/.local/bin/astyle, 범위 = 도우미)"
 
 # --- 5. VSCode 전역 settings.json 병합 (기존 설정 보존) ---
 # Remote-WSL 대응: WSL 안에서 돌면 VSCode(원격)가 실제로 읽는 User 설정은
@@ -149,9 +163,9 @@ if [ "$OS" = "Linux" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2
     [ -z "$WIN_USER_SETTINGS" ] && warn "WSL이지만 Windows User 설정 경로를 못 찾음 → WSL 쪽만 병합(키 연결이 회사 VSCode에 안 먹으면 수동 추가 필요)."
 fi
 
-ASTYLE_DEST="$ASTYLE_DEST" OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
+ASTYLE_CMD_VSCODE="$ASTYLE_CMD_VSCODE" OS="$OS" WIN_USER_SETTINGS="$WIN_USER_SETTINGS" python3 - <<'PY'
 import json, os, re
-astyle = os.environ["ASTYLE_DEST"]; osname = os.environ["OS"]
+astyle = os.environ["ASTYLE_CMD_VSCODE"]; osname = os.environ["OS"]   # "$HOME/…" 그대로(절대 경로 아님)
 OURFMT = "jkillian.custom-local-formatters"
 
 # VSCode settings.json 은 JSONC(주석 // /* */ + 후행쉼표 허용)다.
@@ -220,6 +234,7 @@ for p in targets:
     # 원래값 백업 (최초 1회만 — 재설치로 'keep'이 원래값으로 덮이지 않게)
     if p not in backup:
         backup[p] = {k: ({"had": True, "val": cfg[k]} if k in cfg else {"had": False}) for k in GLOBAL_KEYS}
+    # command 는 기기에 묶이지 않는 값. 옛 판이 넣은 절대 경로(/home/…/astyle)도 여기서 새 값으로 바뀐다.
     cfg["customLocalFormatters.formatters"] = [{"command": astyle, "languages": ["cpp", "c"]}]
     # [cpp]/[c]: 덮어쓰지 않고 우리 키(defaultFormatter)만 병합
     for _lang in ("[cpp]", "[c]"):

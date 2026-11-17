@@ -31,9 +31,11 @@ bash uninstall.sh    # 완전 제거 (만든 것만 정확히 되돌림)
 1. **astyle 빌드** — `vendor/astyle-3.6.16/src/*.cpp` 를 `g++ -std=c++17` 로 컴파일 → `~/.local/bin/astyle` (Linux 구버전은 `-lstdc++fs` 자동 폴백)
 2. **`~/.astylerc`** 배치 — 정렬 규칙 단일 소스 (`astylerc` 복사)
 3. **`~/.vimrc`** 패치 — c/cpp 의 `=` 연산자를 astyle 로(마커 블록, 재실행 시 경로 갱신) + Makefile/Go `noexpandtab`
+   - 홈 아래 경로는 `$HOME . '/.local/bin/astyle'` 처럼 적는다. `~/.vimrc` 를 다른 기기로 가져가도 그 기기의 홈으로 풀린다
    - `~/.local/share/plzrun-auto-indent/` 에 `plzrun-reindent.vim`·`plzrun_reindent.py` 설치. `=`·`==`·visual `=` 를 받아 **버퍼 전체**를 astyle 에 넘기고 고른 범위만 바꾼다 → `V=` 해도 0열에 붙지 않음, 범위 밖 줄은 그대로, `gg=G` 결과는 예전과 바이트 단위로 같음
    - 도우미 파일이 없으면 예전처럼 `equalprg=<astyle>` 만 건다
 4. **VSCode 전역 settings.json 병합** (기존 설정 보존) — astyle 포매터 등록 + cpp/c 기본 포매터 + `editor.autoIndent: "keep"`(**전역/모든 언어**: `{` 사이 Enter 시 자동 펼침 없이 개행 1개, vim 손버릇 호환) + Makefile/Go 탭 + `*.mak`/`*.mk`/`GNUmakefile` 인식. macOS / Linux / Remote-WSL 경로 자동 판별.
+   - 포매터 명령은 `"$HOME/.local/bin/astyle"` 로 적는다(절대 경로 아님). 설정이 리눅스(`/home/<이름>`)에서 맥(`/Users/<이름>`)으로 넘어가도 `gg=G` 가 그대로 돈다. 옛 판이 넣은 절대 경로 값은 `install.sh` 를 다시 돌리면 새 값으로 바뀐다
    - `[cpp]`/`[c]` 는 덮어쓰지 않고 우리 키만 병합. `editor.autoIndent` 같은 **전역 공통키는 원래값을 `~/.config/plzrun-auto-indent/orig-settings.json` 에 백업** → uninstall 시 원래값으로 **완벽 복원**(원래 없었으면 제거)
    - **VSCodeVim `o`/`O` 리맵** 추가(`vim.normalModeKeyBindingsNonRecursive`): native `o`(줄 열기+입력모드) 후 **`plzrun.fixIndent`(전용 확장)** 로 브래킷 깊이 기반 들여쓰기. `autoIndent:keep`라 `{` 사이 Enter는 1줄이면서도 `ko` 손버릇에서 커서가 항상 블록에 맞는 들여쓰기로 감(**빈 줄 위가 빈 줄이어도 정확** — reindent의 0열 문제 해결). 배열엔 **우리 2개 항목만 append**(사용자 다른 리맵 보존), uninstall 시 **우리 항목만 제거**
 5. **[macOS 한정] VSCode keybindings 병합** — `Option+←/→` → 커서 위치 히스토리 뒤로/앞으로(`navigateBack/Forward`, Windows의 `Alt+←/→`와 동일). 기존 바인딩 보존 + 우리 2개 항목만 append, uninstall 시 그 2개만 제거. 부작용: 에디터의 Option+←/→ 기본 '단어 단위 이동'이 덮임(Cmd+←/→, vim `b`/`w`는 그대로)
